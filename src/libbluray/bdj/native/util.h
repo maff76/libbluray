@@ -22,6 +22,7 @@
 
 #include "util/attributes.h"
 
+#ifndef MS_APP
 #include <jni.h>
 
 // makes an object from the specified class name and constructor signature
@@ -29,5 +30,6 @@ BD_PRIVATE jobject bdj_make_object(JNIEnv* env, const char* name, const char* si
 
 // makes an array for the specified class name, all elements are initialized to null
 BD_PRIVATE jobjectArray bdj_make_array(JNIEnv* env, const char* name, int count);
+#endif
 
 #endif

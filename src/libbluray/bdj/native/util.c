@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "util.h"
 
 #include "util/logging.h"
@@ -76,3 +77,4 @@ jobjectArray bdj_make_array(JNIEnv* env, const char* name, int count)
 
     return arr;
 }
+#endif

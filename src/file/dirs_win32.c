@@ -36,6 +36,9 @@
 
 char *win32_get_font_dir(const char *font_file)
 {
+#ifdef MS_APP
+	return NULL;
+#else
     wchar_t wdir[MAX_PATH];
     if (S_OK != SHGetFolderPathW(NULL, CSIDL_FONTS, NULL, SHGFP_TYPE_CURRENT, wdir)) {
         int lenght = GetWindowsDirectoryW(wdir, MAX_PATH);
@@ -58,6 +61,7 @@ char *win32_get_font_dir(const char *font_file)
         strcpy(path + len, font_file);
     }
     return path;
+#endif
 }
 
 char *file_get_config_home(void)
@@ -67,6 +71,9 @@ char *file_get_config_home(void)
 
 char *file_get_data_home(void)
 {
+#ifdef MS_APP
+	return NULL;
+#else
     wchar_t wdir[MAX_PATH];
 
     /* Get the "Application Data" folder for the user */
@@ -82,6 +89,7 @@ char *file_get_data_home(void)
 
     BD_DEBUG(DBG_FILE, "Can't find user configuration directory !\n");
     return NULL;
+#endif
 }
 
 char *file_get_cache_home(void)
@@ -91,6 +99,9 @@ char *file_get_cache_home(void)
 
 const char *file_get_config_system(const char *dir)
 {
+#ifdef MS_APP
+	return NULL;
+#else
     static char *appdir = NULL;
     wchar_t wdir[MAX_PATH];
 
@@ -119,4 +130,5 @@ const char *file_get_config_system(const char *dir)
     }
 
     return dir;
+#endif
 }

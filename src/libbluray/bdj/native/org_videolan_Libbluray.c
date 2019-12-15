@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "bdjo.h"
 #include "util.h"
 
@@ -769,3 +770,4 @@ BD_PRIVATE CPP_EXTERN const int
 Java_org_videolan_Libbluray_methods_count =
     sizeof(Java_org_videolan_Libbluray_methods)/sizeof(Java_org_videolan_Libbluray_methods[0]);
 
+#endif

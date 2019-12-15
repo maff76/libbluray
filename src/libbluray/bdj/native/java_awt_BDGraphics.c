@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "util/logging.h"
 
 #include <jni.h>
@@ -110,3 +111,4 @@ Java_java_awt_BDGraphics_methods[] =
 BD_PRIVATE CPP_EXTERN const int
 Java_java_awt_BDGraphics_methods_count =
      sizeof(Java_java_awt_BDGraphics_methods)/sizeof(Java_java_awt_BDGraphics_methods[0]);
+#endif

@@ -27,6 +27,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "bdjo.h"
 
 #include "util.h"
@@ -242,3 +243,4 @@ jobject bdjo_make_jobj(JNIEnv* env, const BDJO *p)
 
     return result;
 }
+#endif

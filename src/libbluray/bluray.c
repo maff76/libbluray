@@ -901,7 +901,7 @@ static void _check_bdj(BLURAY *bd)
 {
     if (!bd->disc_info.bdj_handled) {
         if (!bd->disc || bd->disc_info.bdj_detected) {
-
+#ifndef MS_APP
             /* Check if jvm + jar can be loaded ? */
             switch (bdj_jvm_available(&bd->bdjstorage)) {
             case 2: bd->disc_info.bdj_handled = 1;
@@ -909,6 +909,7 @@ static void _check_bdj(BLURAY *bd)
             case 1: bd->disc_info.libjvm_detected = 1;
             default:;
             }
+#endif
         }
     }
 }
@@ -1338,6 +1339,7 @@ void bd_bdj_osd_cb(BLURAY *bd, const unsigned *img, int w, int h,
  * BD-J
  */
 
+#ifndef MS_APP
 static int _start_bdj(BLURAY *bd, unsigned title)
 {
     if (bd->bdjava == NULL) {
@@ -1350,15 +1352,19 @@ static int _start_bdj(BLURAY *bd, unsigned title)
 
     return !bdj_process_event(bd->bdjava, BDJ_EVENT_START, title);
 }
+#endif
 
 static int _bdj_event(BLURAY *bd, unsigned ev, unsigned param)
 {
+#ifndef MS_APP
     if (bd->bdjava != NULL) {
         return bdj_process_event(bd->bdjava, ev, param);
     }
+#endif
     return -1;
 }
 
+#ifndef MS_APP
 static void _stop_bdj(BLURAY *bd)
 {
     if (bd->bdjava != NULL) {
@@ -1375,6 +1381,7 @@ static void _close_bdj(BLURAY *bd)
         bd->bdjava = NULL;
     }
 }
+#endif
 
 /*
  * open / close
@@ -1499,7 +1506,9 @@ void bd_close(BLURAY *bd)
         return;
     }
 
+#ifndef MS_APP
     _close_bdj(bd);
+#endif
 
     _close_m2ts(&bd->st0);
     _close_preload(&bd->st_ig);
@@ -1517,7 +1526,9 @@ void bd_close(BLURAY *bd)
 
     event_queue_destroy(&bd->event_queue);
     array_free((void**)&bd->titles);
+#ifndef MS_APP
     bdj_storage_cleanup(&bd->bdjstorage);
+#endif
 
     disc_close(&bd->disc);
 
@@ -1556,7 +1567,9 @@ static void _playmark_reached(BLURAY *bd)
     BD_DEBUG(DBG_BLURAY, "PlayMark %d reached (%"PRIu64")\n", bd->next_mark, bd->next_mark_pos);
 
     _queue_event(bd, BD_EVENT_PLAYMARK, bd->next_mark);
+#ifndef MS_APP
     _bdj_event(bd, BDJ_EVENT_MARK, bd->next_mark);
+#endif
 
     /* update next mark */
     bd->next_mark++;
@@ -1592,7 +1605,9 @@ static void _seek_internal(BLURAY *bd,
             media_time = media_time - clip->in_time + clip->title_time;
         }
         _queue_event(bd, BD_EVENT_SEEK, media_time);
+#ifndef MS_APP
         _bdj_event(bd, BDJ_EVENT_SEEK, media_time);
+#endif
 
         /* playmark tracking */
         _find_next_playmark(bd);
@@ -2884,6 +2899,9 @@ void bd_select_stream(BLURAY *bd, uint32_t stream_type, uint32_t stream_id, uint
 
 int bd_start_bdj(BLURAY *bd, const char *start_object)
 {
+#ifdef MS_APP
+	return 0;
+#else
     const BLURAY_TITLE *t;
     unsigned int title_num = atoi(start_object);
     unsigned ii;
@@ -2914,13 +2932,16 @@ int bd_start_bdj(BLURAY *bd, const char *start_object)
     }
 
     return 0;
+#endif
  }
 
 void bd_stop_bdj(BLURAY *bd)
 {
+#ifndef MS_APP
     bd_mutex_lock(&bd->mutex);
     _close_bdj(bd);
     bd_mutex_unlock(&bd->mutex);
+#endif
 }
 
 /*
@@ -2996,26 +3017,36 @@ static void _process_psr_write_event(BLURAY *bd, BD_PSR_EVENT *ev)
         /* current playback position */
 
         case PSR_ANGLE_NUMBER:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_ANGLE,   ev->new_val);
+#endif
             _queue_event(bd, BD_EVENT_ANGLE,    ev->new_val);
             break;
         case PSR_TITLE_NUMBER:
             _queue_event(bd, BD_EVENT_TITLE,    ev->new_val);
             break;
         case PSR_PLAYLIST:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_PLAYLIST,ev->new_val);
+#endif
             _queue_event(bd, BD_EVENT_PLAYLIST, ev->new_val);
             break;
         case PSR_PLAYITEM:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_PLAYITEM,ev->new_val);
+#endif
             _queue_event(bd, BD_EVENT_PLAYITEM, ev->new_val);
             break;
         case PSR_TIME:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_PTS,     ev->new_val);
+#endif
             break;
 
         case 102:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_PSR102,  ev->new_val);
+#endif
             break;
         case 103:
             disc_event(bd->disc, DISC_EVENT_APPLICATION, ev->new_val);
@@ -3040,7 +3071,9 @@ static void _process_psr_change_event(BLURAY *bd, BD_PSR_EVENT *ev)
             break;
 
         case PSR_CHAPTER:
+#ifndef MS_APP
             _bdj_event  (bd, BDJ_EVENT_CHAPTER, ev->new_val);
+#endif
             if (ev->new_val != 0xffff) {
                 _queue_event(bd, BD_EVENT_CHAPTER,  ev->new_val);
             }
@@ -3053,12 +3086,16 @@ static void _process_psr_change_event(BLURAY *bd, BD_PSR_EVENT *ev)
             break;
 
         case PSR_PRIMARY_AUDIO_ID:
+#ifndef MS_APP
             _bdj_event(bd, BDJ_EVENT_AUDIO_STREAM, ev->new_val);
+#endif
             _queue_event(bd, BD_EVENT_AUDIO_STREAM, ev->new_val);
             break;
 
         case PSR_PG_STREAM:
+#ifndef MS_APP
             _bdj_event(bd, BDJ_EVENT_SUBTITLE, ev->new_val);
+#endif
             if ((ev->new_val & 0x80000fff) != (ev->old_val & 0x80000fff)) {
                 _queue_event(bd, BD_EVENT_PG_TEXTST,        !!(ev->new_val & 0x80000000));
                 _queue_event(bd, BD_EVENT_PG_TEXTST_STREAM,    ev->new_val & 0xfff);
@@ -3088,7 +3125,9 @@ static void _process_psr_change_event(BLURAY *bd, BD_PSR_EVENT *ev)
                 _queue_event(bd, BD_EVENT_SECONDARY_AUDIO, !!(ev->new_val & 0x40000000));
                 _queue_event(bd, BD_EVENT_SECONDARY_AUDIO_STREAM, ev->new_val & 0xff);
             }
+#ifndef MS_APP
             _bdj_event(bd, BDJ_EVENT_SECONDARY_STREAM, ev->new_val);
+#endif
             break;
 
         /* 3D status */
@@ -3150,6 +3189,10 @@ static void _queue_initial_psr_events(BLURAY *bd)
 
 static int _play_bdj(BLURAY *bd, unsigned title)
 {
+#ifdef MS_APP
+	BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Can't play BD-J title %d\n", title);
+	return -1;
+#else
     int result;
 
     bd->title_type = title_bdj;
@@ -3162,13 +3205,16 @@ static int _play_bdj(BLURAY *bd, unsigned title)
     }
 
     return result;
+#endif
 }
 
 static int _play_hdmv(BLURAY *bd, unsigned id_ref)
 {
     int result = 1;
 
+#ifndef MS_APP
     _stop_bdj(bd);
+#endif
 
     bd->title_type = title_hdmv;
 
@@ -3507,7 +3553,9 @@ static int _read_ext(BLURAY *bd, unsigned char *buf, int len, BD_EVENT *event)
 
     if (bd->title_type == title_bdj) {
         if (bd->end_of_playlist == 1) {
+#ifndef MS_APP
             _bdj_event(bd, BDJ_EVENT_END_OF_PLAYLIST, bd_psr_read(bd->regs, PSR_PLAYLIST));
+#endif
             bd->end_of_playlist |= 2;
         }
 

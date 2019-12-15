@@ -78,13 +78,17 @@ void *dl_dlopen(const char *path, const char *version)
     }
 
 #if (_WIN32_WINNT < _WIN32_WINNT_WIN8)
-    if (GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),
-                       "SetDefaultDllDirectories") != NULL)
+	if (GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),
+		"SetDefaultDllDirectories") != NULL)
 #endif
+#ifdef MS_APP
+	result = LoadPackagedLibrary(wname, 0);
+#else
         flags = LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
                 LOAD_LIBRARY_SEARCH_SYSTEM32;
 
     result = LoadLibraryExW(wname, NULL, flags);
+#endif
 
     if (!result) {
         char buf[128];
@@ -129,11 +133,15 @@ const char *dl_get_path(void)
         HMODULE hModule;
         wchar_t wpath[MAX_PATH];
 
+#ifdef MS_APP
+		DWORD dw = GetModuleFileNameW(NULL, wpath, MAX_PATH);
+#else
         if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                               (LPCTSTR)&dl_get_path, &hModule)) {
 
             DWORD dw = GetModuleFileNameW(hModule, wpath, MAX_PATH);
+#endif
             if (dw > 0 && dw < MAX_PATH) {
 
                 if (WideCharToMultiByte(CP_UTF8, 0, wpath, -1, path, MAX_PATH, NULL, NULL)) {
@@ -141,7 +149,9 @@ const char *dl_get_path(void)
                     lib_path = path;
                 }
             }
+#ifndef MS_APP
         }
+#endif
 
         if (lib_path) {
             /* cut library name from path */

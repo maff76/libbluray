@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "bdj.h"
 
 #include "native/register_native.h"
@@ -1006,3 +1007,4 @@ int bdj_process_event(BDJAVA *bdjava, unsigned ev, unsigned param)
 
     return result;
 }
+#endif

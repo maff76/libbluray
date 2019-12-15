@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "util/logging.h"
 
 #include <jni.h>
@@ -86,3 +87,4 @@ Java_org_videolan_Logger_methods[] =
 BD_PRIVATE CPP_EXTERN const int
 Java_org_videolan_Logger_methods_count =
      sizeof(Java_org_videolan_Logger_methods)/sizeof(Java_org_videolan_Logger_methods[0]);
+#endif

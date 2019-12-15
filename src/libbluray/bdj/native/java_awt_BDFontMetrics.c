@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include <jni.h>
 
 #include "util.h"
@@ -568,3 +569,4 @@ Java_java_awt_BDFontMetrics_methods[] =
 BD_PRIVATE CPP_EXTERN const int
 Java_java_awt_BDFontMetrics_methods_count =
     sizeof(Java_java_awt_BDFontMetrics_methods)/sizeof(Java_java_awt_BDFontMetrics_methods[0]);
+#endif

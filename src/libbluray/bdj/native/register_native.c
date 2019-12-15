@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 
+#ifndef MS_APP
 #include "register_native.h"
 
 #include "util/logging.h"
@@ -130,3 +131,4 @@ void bdj_unregister_native_methods(JNIEnv *env)
     _unregister_methods(env, "org/videolan/Libbluray");
     _unregister_methods(env, "org/videolan/Logger");
 }
+#endif

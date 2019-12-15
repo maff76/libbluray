@@ -20,6 +20,7 @@
 #ifndef BDJO_H_
 #define BDJO_H_
 
+#ifndef MS_APP
 #include "util/attributes.h"
 
 #include <jni.h>
@@ -34,4 +35,5 @@ struct bdjo_data;
 
 BD_PRIVATE jobject bdjo_make_jobj(JNIEnv* env, const struct bdjo_data *bdjo);
 
+#endif
 #endif /* BDJO_H_ */
