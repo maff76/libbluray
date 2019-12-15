@@ -192,7 +192,7 @@ target_compile_definitions(libbluray
 )
 target_link_options(libbluray
   PRIVATE
-    /INCREMENTAL-
+    /INCREMENTAL:NO
     /debug:full
 )
 if(WINDOWS_STORE)

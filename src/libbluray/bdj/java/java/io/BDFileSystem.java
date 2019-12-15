@@ -343,4 +343,8 @@ public abstract class BDFileSystem extends FileSystem {
     public int hashCode(File f) {
         return fs.hashCode(f);
     }
+
+    public int getNameMax(String path) {
+        return 260;
+    }
 }

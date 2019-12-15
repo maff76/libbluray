@@ -21,13 +21,13 @@
             description="compile the source " >
         <javac srcdir="${src_asm}" destdir="${build}" debug="yes"
                bootclasspath="${bootclasspath}"
-               source="1.5" target="1.5">
+               source="1.6" target="1.6">
                <compilerarg value="-XDignore.symbol.file"/>
                <compilerarg value="-Xlint:-deprecation"/>
         </javac>
         <javac srcdir="${src}${src_awt}" destdir="${build}" debug="yes"
                bootclasspath="${bootclasspath}"
-               source="1.4" target="1.4">
+               source="1.6" target="1.6">
                <compilerarg value="-XDignore.symbol.file"/>
                <compilerarg value="-Xlint:-deprecation"/>
         </javac>

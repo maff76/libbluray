@@ -173,7 +173,7 @@ public class BDFramePeer extends BDComponentPeer implements FramePeer
         return ((BDToolkit)BDToolkit.getDefaultToolkit()).createImage((Component)null, width, height);
     }
 
-    public boolean requestFocus(Component c, boolean a, boolean b, long l, sun.awt.CausedFocusEvent.Cause d) {
+    public boolean requestFocus(Component c, boolean a, boolean b, long l, java.awt.event.FocusEvent.Cause d) {
         if (c == null) {
             return true;
         }
