@@ -1390,24 +1390,26 @@ static int _bdj_event(BLURAY *bd, unsigned ev, unsigned param)
     return -1;
 }
 
-#ifndef MS_APP
 static void _stop_bdj(BLURAY *bd)
 {
+#ifndef MS_APP
     if (bd->bdjava != NULL) {
         bdj_process_event(bd->bdjava, BDJ_EVENT_STOP, 0);
         _queue_event(bd, BD_EVENT_STILL, 0);
         _queue_event(bd, BD_EVENT_KEY_INTEREST_TABLE, 0);
     }
+#endif
 }
 
 static void _close_bdj(BLURAY *bd)
 {
+#ifndef MS_APP
     if (bd->bdjava != NULL) {
         bdj_close(bd->bdjava);
         bd->bdjava = NULL;
     }
-}
 #endif
+}
 
 /*
  * open / close
