@@ -1,3 +1,38 @@
+2019-06-07: Version 1.1.2
+- Add libxml version to pkg-config Requires.private.
+- Improve support for NetBSD operating system.
+- Improve BD-J compability.
+- Improve Java 8+ compability.
+- Fix main playlist caching in Windows.
+- Fix mark triggering when multiple marks are passed during single read().
+- Fix seek bar pop-up at chapter boundary with some discs.
+- Fix reading resources indirectly from mounted .jar file.
+
+2019-04-05: Version 1.1.1
+- Enable playback without menus when index.bdmv is missing.
+- Improve error resilience and stability.
+- Improve BD-J compability.
+- Fix loading libraries on MacOS / hardened runtime.
+- Fix resetting user-selected streams when playing without menus.
+- Fix stack overflow when using Java9+ with debugger connection.
+- Fix polygon-based BD-J graphics primitives.
+- Fix loading libmmbd in Windows 64-bit.
+- Fix loading classes with Windows Java 8.
+- Fix build with Java 1.6.
+- Fix pkg-config Libs.private.
+
+2019-02-12: Version 1.1.0
+- Add initial support for OpenJDK 11.
+- Add initial support for UHD disc BD-J menus.
+- Add support for compiling .jar file with Java 9+ compiler.
+- Move AWT classes to separate .jar file.
+- Update libudfread submodule repository URL.
+- Improve main title selection.
+- Improve error resilience and stability.
+- Improve BD-J compability.
+- Fix playback of some broken BD-J discs.
+- Fix playback of discs without normal titles (only TopMenu / FirstPlay title).
+
 2017-12-01: Version 1.0.2
 - Add initial support for UHD BluRay discs (without BD-J menus).
 - Detect JRE (from the Java Applet plugin) on MacOS.

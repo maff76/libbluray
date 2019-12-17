@@ -121,7 +121,9 @@ final class BDJSecurityManager extends SecurityManager {
             if (perm.getActions().equals("read")) {
                 String prop = perm.getName();
                 if (prop.startsWith("bluray.") || prop.startsWith("dvb.") || prop.startsWith("mhp.") || prop.startsWith("aacs.")) {
-                    //logger.info(perm + " granted");
+                    return;
+                }
+                if (prop.equals("dolbyvision.graphicspriority.available")) {
                     return;
                 }
                 if (prop.startsWith("user.dir")) {
@@ -215,6 +217,31 @@ final class BDJSecurityManager extends SecurityManager {
             System.err.println(" *** caught " + ex + " at\n" + Logger.dumpStack());
             throw ex;
         }
+    }
+
+    /*
+     * Allow package access (Java 11)
+     */
+
+    private static String pkgPrefixes[] = {
+        "javax.media" ,
+        "javax.tv",
+        "javax.microedition",
+        "org.davic",
+        "org.dvb",
+        "org.havi",
+        "org.bluray",
+        "org.blurayx",
+        "com.aacsla.bluray",
+    };
+
+    public void checkPackageAccess(String pkg) {
+
+        for (int i = 0; i < pkgPrefixes.length; i++)
+            if (pkg.startsWith(pkgPrefixes[i]))
+                return;
+
+        super.checkPackageAccess(pkg);
     }
 
     /*

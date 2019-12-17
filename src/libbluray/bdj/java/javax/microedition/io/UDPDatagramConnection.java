@@ -1,5 +1,6 @@
 /*
  * This file is part of libbluray
+ * Copyright (C) 2019  VideoLAN
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,18 +17,11 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-package java.awt;
+package javax.microedition.io;
 
-class BDGraphicsDevice extends BDGraphicsDeviceImpl {
+import java.io.IOException;
 
-    BDGraphicsDevice(BDGraphicsEnvironment environment) {
-        super(environment);
-    }
-
-    /* J2SE java 7 */
-    /*
-    public boolean isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency translucencyKind) {
-        return true;
-    }
-    */
+public interface UDPDatagramConnection extends DatagramConnection {
+    public abstract String getLocalAddress() throws IOException;
+    public abstract int getLocalPort() throws IOException;
 }

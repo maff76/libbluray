@@ -27,6 +27,11 @@
 #include "util/logging.h"
 #include "util/strutl.h"
 
+#ifdef __APPLE__
+// Required to make dladdr available
+#    define _DARWIN_C_SOURCE
+#endif
+
 #if defined(HAVE_DLFCN_H)
 #   include <dlfcn.h>
 #elif defined(HAVE_SYS_DL_H)
@@ -64,10 +69,11 @@ void *dl_dlopen(const char *path, const char *version)
        @loader_path     - location of current library/binary (ex. libbluray.dylib)
        @executable_path - location of running binary (ex. /Applications/Some.app/Contents/MacOS)
        @rpath           - search rpaths of running binary (man install_name_path)
+       /usr/local/lib/  - explicitly added path, as runtime hardened programs ignore DYLD_FALLBACK_PATH now
     */
     static const char *search_paths[] = {"", "@loader_path/lib/", "@loader_path/", "@executable_path/",
                                          "@executable_path/lib/", "@executable_path/../lib/",
-                                         "@executable_path/../Resources/", "@rpath/", NULL};
+                                         "@executable_path/../Resources/", "@rpath/", "/usr/local/lib/", NULL};
     version = NULL;
 #else
     static const char ext[] = ".so";
@@ -112,6 +118,7 @@ int dl_dlclose(void *handle)
     return dlclose(handle);
 }
 
+#define PATH_SEPARATOR '/'
 const char *dl_get_path(void)
 {
     static char *lib_path    = NULL;
@@ -120,7 +127,25 @@ const char *dl_get_path(void)
     if (!initialized) {
         initialized = 1;
 
+#ifdef __APPLE__
+        Dl_info dl_info;
+        int ret = dladdr((void *)dl_get_path, &dl_info);
+
+        if (ret != 0) {
+            lib_path = strdup(dl_info.dli_fname);
+
+            /* cut library name from path */
+            char *p = strrchr(lib_path, PATH_SEPARATOR);
+            if (p) {
+                *(p+1) = 0;
+            }
+            BD_DEBUG(DBG_FILE, "library file is %s\n", lib_path);
+        } else {
+            BD_DEBUG(DBG_FILE, "Can't determine libbluray.so install path\n");
+        }
+#else
         BD_DEBUG(DBG_FILE, "Can't determine libbluray.so install path\n");
+#endif
     }
 
     return lib_path;

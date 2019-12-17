@@ -31,12 +31,15 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Map;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 import javax.tv.xlet.Xlet;
 
 import org.videolan.bdjo.AppCache;
 
 public class BDJClassLoader extends URLClassLoader {
-    public static BDJClassLoader newInstance(AppCache[] appCaches, String basePath, String classPathExt, String xletClass) {
+    public static BDJClassLoader newInstance(AppCache[] appCaches, String basePath, String classPathExt, final String xletClass) {
         ArrayList classPath = new ArrayList();
         URL url = translateClassPath(appCaches, basePath, null);
         if (url != null)
@@ -47,7 +50,14 @@ public class BDJClassLoader extends URLClassLoader {
             if ((url != null) && (classPath.indexOf(url) < 0))
                 classPath.add(url);
         }
-        return new BDJClassLoader((URL[])classPath.toArray(new URL[classPath.size()]) , xletClass);
+
+        final URL[] urls = (URL[])classPath.toArray(new URL[classPath.size()]);
+        return (BDJClassLoader)AccessController.doPrivileged(
+                new PrivilegedAction() {
+                    public Object run() {
+                        return new BDJClassLoader(urls, xletClass);
+                    }
+                });
     }
 
     private static URL translateClassPath(AppCache[] appCaches, String basePath, String classPath) {
@@ -109,7 +119,7 @@ public class BDJClassLoader extends URLClassLoader {
         super(urls);
         this.xletClass = xletClass;
 
-        BDJClassLoaderAdapter a = Libbluray.getLoaderAdapter();
+        BDJClassLoaderAdapter a = Libbluray.getClassLoaderAdapter();
         if (a != null) {
             hideClasses = a.getHideClasses();
             bootClasses = a.getBootClasses();
@@ -270,8 +280,11 @@ public class BDJClassLoader extends URLClassLoader {
     }
 
     public URL getResource(String name) {
+        URL url;
         name = name.replace('\\', '/');
-        return super.getResource(name);
+        url = super.getResource(name);
+        logger.info("getResource(" + name + ") --> " + url);
+        return url;
     }
 
     /* final in J2ME
@@ -282,8 +295,11 @@ public class BDJClassLoader extends URLClassLoader {
     */
 
     public URL findResource(String name) {
+        URL url;
         name = name.replace('\\', '/');
-        return super.findResource(name);
+        url = super.findResource(name);
+        logger.info("findResource(" + name + ") --> " + url);
+        return url;
     }
 
     public Enumeration findResources(String name) throws IOException {
@@ -292,8 +308,13 @@ public class BDJClassLoader extends URLClassLoader {
     }
 
     public InputStream getResourceAsStream(String name) {
+        InputStream is;
         name = name.replace('\\', '/');
-        return super.getResourceAsStream(name);
+        is = super.getResourceAsStream(name);
+        if (is == null) {
+            logger.info("getResourceAsStream(" + name + ") failed");
+        }
+        return is;
     }
 
     private String xletClass;
