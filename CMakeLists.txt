@@ -21,26 +21,37 @@ endif()
 set(SRCS
   ${CMAKE_CURRENT_BINARY_DIR}/config.h
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/libbluray.def
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dirs.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dirs_win32.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dir_win32.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dl.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dirs_win32.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dirs.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dl_win32.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/dl.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/file_win32.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/file.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/file.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/filesystem.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/filesystem.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/file/file_win32.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/mount.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/file/mount.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray_internal.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray-version.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/keys.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/player_settings.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/register.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/register.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdj.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdj.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_data.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_parse.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_parse.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/bdjo.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/bdjo.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDFontMetrics.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDFontMetrics.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDGraphics.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDGraphics.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Libbluray.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Libbluray.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Logger.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Logger.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/register_native.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/register_native.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/util.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/util.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/bdid_parse.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/bdid_parse.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/bdmv_parse.c
@@ -63,17 +74,21 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/navigation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/sound_parse.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/sound_parse.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/uo_mask_table.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/uo_mask.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/uo_mask.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdnav/uo_mask_table.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray_internal.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray-version.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/graphics_controller.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/graphics_controller.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/graphics_processor.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/graphics_processor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/hdmv_pids.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/ig.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/ig_decode.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/ig_decode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/ig.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/m2ts_demux.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/m2ts_demux.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/m2ts_filter.c
@@ -81,16 +96,16 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/overlay.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pes_buffer.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pes_buffer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pg.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pg_decode.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pg_decode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/pg.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/rle.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/rle.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst_decode.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst_decode.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst_render.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst_render.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/decoders/textst.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/aacs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/aacs.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/bdplus.c
@@ -100,8 +115,8 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/disc.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/disc.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/enc_info.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/properties.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/properties.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/properties.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/udf_fs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/disc/udf_fs.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/hdmv/hdmv_insn.h
@@ -112,6 +127,10 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/hdmv/mobj_parse.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/hdmv/mobj_print.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/hdmv/mobj_print.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/keys.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/player_settings.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/register.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/register.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/array.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/array.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/attributes.h
@@ -119,9 +138,9 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/bits.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/event_queue.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/event_queue.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/util/log_control.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/logging.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/logging.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/util/log_control.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/macro.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/mutex.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/mutex.h
@@ -131,25 +150,6 @@ set(SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/strutl.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/time.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/time.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdj.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdj.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_data.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_parse.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/bdjo_parse.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/bdjo.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/bdjo.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDFontMetrics.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDFontMetrics.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDGraphics.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/java_awt_BDGraphics.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Libbluray.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Libbluray.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Logger.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/org_videolan_Logger.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/register_native.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/register_native.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/util.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/native/util.h
 )
 
 

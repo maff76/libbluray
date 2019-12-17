@@ -182,9 +182,9 @@ public class BDFramePeer extends BDComponentPeer implements FramePeer
     }
 
     /* Java < 9 */
-    public boolean requestFocus(Component c, boolean a, boolean b, long l, java.awt.event.FocusEvent.Cause d) {
-        return requestFocusHelper(c, a, b, l);
-    }
+    // public boolean requestFocus(Component c, boolean a, boolean b, long l, java.awt.event.FocusEvent.Cause d) {
+    //     return requestFocusHelper(c, a, b, l);
+    // }
 
     private boolean requestFocusHelper(Component c, boolean a, boolean b, long l) {
         if (c == null) {
