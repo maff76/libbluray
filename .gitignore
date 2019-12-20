@@ -40,3 +40,4 @@ hdmv_test
 *.exe
 src/libbluray/bdj/build
 stamp-h1
+.vscode/

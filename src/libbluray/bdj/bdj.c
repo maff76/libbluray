@@ -424,6 +424,12 @@ static void *_load_jvm(const char **p_java_home)
     java_home = getenv("JAVA_HOME");
     if (java_home) {
         *p_java_home = java_home;
+#if defined(_WIN32) && !defined(HAVE_BDJ_J2ME)
+        handle = _load_jvm_win32(p_java_home);
+        if (handle) {
+            return handle;
+        }
+#endif
         return _jvm_dlopen_a(java_home, jvm_dir, num_jvm_dir, jvm_lib);
     }
 
