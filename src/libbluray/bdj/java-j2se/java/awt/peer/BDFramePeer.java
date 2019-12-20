@@ -174,17 +174,17 @@ public class BDFramePeer extends BDComponentPeer implements FramePeer
     }
 
     /* Java >= 9 */
-    public boolean requestFocus(Component c/*lightweightChild*/, boolean a/*temporary*/,
-                                boolean b/*focusedWindowChangeAllowed*/, long l/*time*/,
-                                java.awt.event.FocusEvent.Cause cause
-                                ) {
-        return requestFocusHelper(c, a, b, l);
-    }
-
-    /* Java < 9 */
-    // public boolean requestFocus(Component c, boolean a, boolean b, long l, java.awt.event.FocusEvent.Cause d) {
+    // public boolean requestFocus(Component c/*lightweightChild*/, boolean a/*temporary*/,
+    //                             boolean b/*focusedWindowChangeAllowed*/, long l/*time*/,
+    //                             java.awt.event.FocusEvent.Cause cause
+    //                             ) {
     //     return requestFocusHelper(c, a, b, l);
     // }
+
+    /* Java < 9 */
+    public boolean requestFocus(Component c, boolean a, boolean b, long l, sun.awt.CausedFocusEvent.Cause d) {
+        return requestFocusHelper(c, a, b, l);
+    }
 
     private boolean requestFocusHelper(Component c, boolean a, boolean b, long l) {
         if (c == null) {
