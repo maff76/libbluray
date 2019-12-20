@@ -264,6 +264,7 @@ install(FILES
 if(NOT WINDOWS_STORE)
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/libbluray-j2se-${libbluray_VERSION}.jar
+    ${CMAKE_CURRENT_BINARY_DIR}/libbluray-awt-j2se-${libbluray_VERSION}.jar
     DESTINATION bin)
 endif(NOT WINDOWS_STORE)
 
