@@ -209,6 +209,12 @@ target_include_directories(libbluray
 )
 
 if(NOT WINDOWS_STORE)
+  target_link_libraries(libbluray
+    PRIVATE
+      shell32.lib
+      advapi32.lib
+      gdi32.lib
+  )
   if (EXISTS $ENV{ANT_HOME})
   set(ANT_CMD $ENV{ANT_HOME}/bin/ant)
   set(ANT_BUILD ${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bdj/build.xml)
