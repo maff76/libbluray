@@ -344,19 +344,23 @@ static void *_jvm_dlopen_a(const char *java_home,
 static void *_load_jli_macos()
 {
     const char *java_home = NULL;
-    static const char jli_dir[] = "jre/lib/jli";
+    static const char * const jli_dir[]  = {
+        "jre/lib/jli", "lib/jli",
+    };
+    const unsigned num_jli_dir  = sizeof(jli_dir)  / sizeof(jli_dir[0]);
+
     static const char jli_lib[] = "libjli";
     void *handle;
 
     /* JAVA_HOME set, use it */
     java_home = getenv("JAVA_HOME");
     if (java_home) {
-        return _jvm_dlopen(java_home, jli_dir, jli_lib);
+        return _jvm_dlopen_a(java_home, jli_dir, num_jli_dir, jli_lib);
     }
 
     java_home = _java_home_macos();
     if (java_home) {
-        handle = _jvm_dlopen(java_home, jli_dir, jli_lib);
+        handle = _jvm_dlopen_a(java_home, jli_dir, num_jli_dir, jli_lib);
         if (handle) {
             return handle;
         }
@@ -493,7 +497,7 @@ static int _can_read_file(const char *fn)
     return 0;
 }
 
-void bdj_storage_cleanup(BDJ_STORAGE *p)
+void bdj_config_cleanup(BDJ_CONFIG *p)
 {
     X_FREE(p->cache_root);
     X_FREE(p->persistent_root);
@@ -594,7 +598,7 @@ static char *_find_libbluray_jar1(const char *jar0)
     return jar1;
 }
 
-static int _find_libbluray_jar(BDJ_STORAGE *storage)
+static int _find_libbluray_jar(BDJ_CONFIG *storage)
 {
     if (!storage->classpath[0]) {
         storage->classpath[0] = _find_libbluray_jar0();
@@ -614,7 +618,7 @@ static int _find_libbluray_jar(BDJ_STORAGE *storage)
     return !!storage->classpath[0];
 }
 
-static const char *_bdj_persistent_root(BDJ_STORAGE *storage)
+static const char *_bdj_persistent_root(BDJ_CONFIG *storage)
 {
     const char *root;
     char       *data_home;
@@ -645,7 +649,7 @@ static const char *_bdj_persistent_root(BDJ_STORAGE *storage)
     return storage->persistent_root;
 }
 
-static const char *_bdj_buda_root(BDJ_STORAGE *storage)
+static const char *_bdj_buda_root(BDJ_CONFIG *storage)
 {
     const char *root;
     char       *cache_home;
@@ -703,7 +707,7 @@ static int _get_method(JNIEnv *env, jclass *cls, jmethodID *method_id,
 }
 
 static int _bdj_init(JNIEnv *env, struct bluray *bd, const char *disc_root, const char *bdj_disc_id,
-                     BDJ_STORAGE *storage)
+                     BDJ_CONFIG *storage)
 {
     if (!bdj_register_native_methods(env)) {
         BD_DEBUG(DBG_BDJ | DBG_CRIT, "Couldn't register native methods.\n");
@@ -745,7 +749,7 @@ static int _bdj_init(JNIEnv *env, struct bluray *bd, const char *disc_root, cons
     return 1;
 }
 
-int bdj_jvm_available(BDJ_STORAGE *storage)
+int bdj_jvm_available(BDJ_CONFIG *storage)
 {
     const char *java_home;
     void* jvm_lib = _load_jvm(&java_home);
@@ -841,6 +845,7 @@ static const char * const java_base_exports[] = {
         "com.aacsla.bluray.online",
         "com.aacsla.bluray.mc",
         "com.aacsla.bluray.mt",
+        "org.videolan.backdoor", /* entry for injected Xlet / runtime fixes */
 };
 static const size_t num_java_base_exports = sizeof(java_base_exports) / sizeof(java_base_exports[0]);
 
@@ -865,7 +870,7 @@ static int _create_jvm(void *jvm_lib, const char *java_home, const char *jar_fil
 #else
     java_9 = !!dl_dlsym(jvm_lib, "JVM_DefineModule");
     if (java_9) {
-        BD_DEBUG(DBG_CRIT | DBG_BDJ, "Detected Java 9 or later JVM - support is experimental !\n");
+        BD_DEBUG(DBG_BDJ, "Detected Java 9 or later JVM\n");
     }
 #endif
 
@@ -917,7 +922,12 @@ static int _create_jvm(void *jvm_lib, const char *java_home, const char *jar_fil
 
     /* JVM debug options */
 
+    if (getenv("BDJ_JVM_DISABLE_JIT")) {
+        BD_DEBUG(DBG_CRIT | DBG_BDJ, "Disabling BD-J JIT\n");
+        option[n++].optionString = str_dup("-Xint");
+    }
     if (getenv("BDJ_JVM_DEBUG")) {
+        BD_DEBUG(DBG_CRIT | DBG_BDJ, "Enabling BD-J debug mode\n");
         option[n++].optionString = str_dup("-ea");
         //option[n++].optionString = str_dup("-verbose");
         //option[n++].optionString = str_dup("-verbose:class,gc,jni");
@@ -971,11 +981,11 @@ static int _create_jvm(void *jvm_lib, const char *java_home, const char *jar_fil
 }
 
 BDJAVA* bdj_open(const char *path, struct bluray *bd,
-                 const char *bdj_disc_id, BDJ_STORAGE *storage)
+                 const char *bdj_disc_id, BDJ_CONFIG *cfg)
 {
     BD_DEBUG(DBG_BDJ, "bdj_open()\n");
 
-    if (!_find_libbluray_jar(storage)) {
+    if (!_find_libbluray_jar(cfg)) {
         BD_DEBUG(DBG_BDJ | DBG_CRIT, "BD-J start failed: " BDJ_JARFILE " not found.\n");
         return NULL;
     }
@@ -1007,7 +1017,7 @@ BDJAVA* bdj_open(const char *path, struct bluray *bd,
 
     JNIEnv* env = NULL;
     JavaVM *jvm = NULL;
-    const char *jar[2] = { storage->classpath[0], storage->classpath[1] };
+    const char *jar[2] = { cfg->classpath[0], cfg->classpath[1] };
     if (!_find_jvm(jvm_lib, &env, &jvm) &&
         !_create_jvm(jvm_lib, java_home, jar, &env, &jvm)) {
 
@@ -1027,7 +1037,7 @@ BDJAVA* bdj_open(const char *path, struct bluray *bd,
         BD_DEBUG(DBG_BDJ, "Java version: %d.%d\n", version >> 16, version & 0xffff);
     }
 
-    if (!_bdj_init(env, bd, path, bdj_disc_id, storage)) {
+    if (!_bdj_init(env, bd, path, bdj_disc_id, cfg)) {
         bdj_close(bdjava);
         return NULL;
     }

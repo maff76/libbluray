@@ -23,6 +23,7 @@ package org.videolan;
 import java.awt.BDFontMetrics;
 import java.awt.BDToolkit;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +38,7 @@ import org.bluray.bdplus.Status;
 import org.bluray.net.BDLocator;
 import org.bluray.system.RegisterAccess;
 import org.bluray.ti.DiscManager;
-import org.bluray.ti.TitleImpl;
+import org.bluray.ti.Title;
 import org.bluray.ti.selection.TitleContext;
 import org.bluray.ui.event.HRcEvent;
 import org.dvb.event.EventManager;
@@ -352,6 +353,13 @@ public class Libbluray {
         loadAdapter(System.getProperty("org.videolan.loader.adapter"));
         loadAdapter(pkg);
 
+        /* get title infos */
+        titleInfos = getTitleInfosN(nativePointer);
+        if (titleInfos == null) {
+            /* this is fatal */
+            throw new Error("getTitleInfos() failed");
+        }
+
         booted = true;
     }
 
@@ -387,9 +395,7 @@ public class Libbluray {
             System.err.println("shutdown() failed: " + e + "\n" + Logger.dumpStack(e));
         }
         nativePointer = 0;
-        synchronized (titleInfosLock) {
-            titleInfos = null;
-        }
+        titleInfos = null;
         synchronized (bdjoFilesLock) {
             bdjoFiles = null;
         }
@@ -429,20 +435,11 @@ public class Libbluray {
 
     /* used by javax/tv/service/SIManagerImpl */
     public static int numTitles() {
-        synchronized (titleInfosLock) {
-            if (titleInfos == null) {
-                titleInfos = getTitleInfosN(nativePointer);
-                if (titleInfos == null) {
-                    return -1;
-                }
-            }
-            return titleInfos.length - 2;
-        }
+        return titleInfos.length - 2;
     }
 
     /* used by org/bluray/ti/TitleImpl */
     public static TitleInfo getTitleInfo(int titleNum) {
-        synchronized (titleInfosLock) {
             int numTitles = numTitles();
             if (numTitles < 0)
                 return null;
@@ -455,7 +452,6 @@ public class Libbluray {
                 throw new IllegalArgumentException();
 
             return titleInfos[titleNum];
-        }
     }
 
     /* used by org/bluray/ti/PlayListImpl */
@@ -633,17 +629,15 @@ public class Libbluray {
      */
 
     private static boolean startTitle(int titleNumber) {
-
-        TitleContext titleContext = null;
         try {
             BDLocator locator = new BDLocator(null, titleNumber, -1);
-            TitleImpl title   = (TitleImpl)SIManager.createInstance().getService(locator);
+            Title title = (Title)SIManager.createInstance().getService(locator);
             if (title == null) {
                 System.err.println("startTitle() failed: title " + titleNumber + " not found");
                 return false;
             }
 
-            titleContext = (TitleContext)ServiceContextFactory.getInstance().getServiceContext(null);
+            TitleContext titleContext = (TitleContext)ServiceContextFactory.getInstance().getServiceContext(null);
             titleContext.start(title, true);
             return true;
 
@@ -654,9 +648,8 @@ public class Libbluray {
     }
 
     private static boolean stopTitle(boolean shutdown) {
-        TitleContext titleContext = null;
         try {
-            titleContext = (TitleContext)ServiceContextFactory.getInstance().getServiceContext(null);
+            TitleContext titleContext = (TitleContext)ServiceContextFactory.getInstance().getServiceContext(null);
             if (shutdown) {
                 titleContext.destroy();
             } else {
@@ -702,7 +695,7 @@ public class Libbluray {
             break;
 
         case BDJ_EVENT_VK_KEY:
-            switch (param) {
+            switch (param & 0xffff) {
             case  0: key = KeyEvent.VK_0; break;
             case  1: key = KeyEvent.VK_1; break;
             case  2: key = KeyEvent.VK_2; break;
@@ -724,7 +717,16 @@ public class Libbluray {
             case 405: key = HRcEvent.VK_COLORED_KEY_2; break;
             case 406: key = HRcEvent.VK_COLORED_KEY_3; break;
             case 17:
-                result = java.awt.BDJHelper.postMouseEvent(0);
+                result = false;
+                if ((param & 0x80000000) != 0) {
+                    result = java.awt.BDJHelper.postMouseEvent(MouseEvent.MOUSE_PRESSED) || result;
+                }
+                if ((param & 0x40000000) != 0) {
+                    result = java.awt.BDJHelper.postMouseEvent(MouseEvent.MOUSE_CLICKED) || result;
+                }
+                if ((param & 0x20000000) != 0) {
+                    result = java.awt.BDJHelper.postMouseEvent(MouseEvent.MOUSE_RELEASED) || result;
+                }
                 key = -1;
                 break;
             default:
@@ -733,9 +735,16 @@ public class Libbluray {
                 break;
             }
             if (key > 0) {
-                boolean r1 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_PRESSED, 0, key);
-                boolean r2 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_TYPED, 0, key);
-                boolean r3 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_RELEASED, 0, key);
+                boolean r1 = false, r2 = false, r3 = false;
+                if ((param & 0x80000000) != 0) {
+                    r1 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_PRESSED, 0, key);
+                }
+                if ((param & 0x40000000) != 0) {
+                    r2 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_TYPED, 0, key);
+                }
+                if ((param & 0x20000000) != 0) {
+                    r3 = EventManager.getInstance().receiveKeyEventN(KeyEvent.KEY_RELEASED, 0, key);
+                }
                 result = r1 || r2 || r3;
             }
             break;
@@ -814,6 +823,5 @@ public class Libbluray {
                                               int x0, int y0, int x1, int y1);
 
     private static long nativePointer = 0;
-    private static Object titleInfosLock = new Object();
     private static TitleInfo[] titleInfos = null;
 }
