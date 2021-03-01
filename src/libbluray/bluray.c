@@ -1561,7 +1561,9 @@ void bd_close(BLURAY *bd)
 
     event_queue_destroy(&bd->event_queue);
     array_free((void**)&bd->titles);
+#ifndef MS_APP
     bdj_config_cleanup(&bd->bdj_config);
+#endif
 
     disc_close(&bd->disc);
 
