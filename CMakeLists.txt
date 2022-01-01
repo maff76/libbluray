@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(BLURAY_VERSION_MAJOR 1)
-set(BLURAY_VERSION_MINOR 2)
-set(BLURAY_VERSION_MICRO 1)
+set(BLURAY_VERSION_MINOR 3)
+set(BLURAY_VERSION_MICRO 0)
 
 project(libbluray VERSION ${BLURAY_VERSION_MAJOR}.${BLURAY_VERSION_MINOR}.${BLURAY_VERSION_MICRO} LANGUAGES C)
 
@@ -12,7 +12,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/libbluray/bluray-version.h.in
 find_package(freetype 2.6 REQUIRED NO_MODULE)
 find_package(iconv 1 REQUIRED NO_MODULE)
 find_package(libxml2 2.9 REQUIRED NO_MODULE)
-find_package(libudfread 1.0 REQUIRED NO_MODULE)
+find_package(libudfread 1.1.2 REQUIRED NO_MODULE)
 
 if(MSVC)
   set(CMAKE_DEBUG_POSTFIX "d")
