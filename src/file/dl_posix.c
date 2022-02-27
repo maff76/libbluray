@@ -94,6 +94,7 @@ void *dl_dlopen(const char *path, const char *version)
             name = str_printf("%s%s%s", search_paths[i], path, ext);
         }
 #endif
+
         if (!name) {
             BD_DEBUG(DBG_FILE | DBG_CRIT, "out of memory\n");
             continue;
