@@ -43,4 +43,4 @@ public class PlatformGraphicsInfo {
             .error("Headless graphics environment ?\n" + org.videolan.Logger.dumpStack());
         return "Internal error: headless graphics environment ?";
     }
-}git
+}
