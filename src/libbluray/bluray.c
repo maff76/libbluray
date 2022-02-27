@@ -957,7 +957,7 @@ static void _check_bdj(BLURAY *bd)
 {
     if (!bd->disc_info.bdj_handled) {
         if (!bd->disc || bd->disc_info.bdj_detected) {
-#ifndef MS_APP
+
             /* Check if jvm + jar can be loaded ? */
             switch (bdj_jvm_available(&bd->bdj_config)) {
                 case BDJ_CHECK_OK:
@@ -968,7 +968,6 @@ static void _check_bdj(BLURAY *bd)
                     /* fall thru */
                 default:;
             }
-#endif
         }
     }
 }
@@ -1133,12 +1132,13 @@ static void _fill_disc_info(BLURAY *bd, BD_ENC_INFO *enc_info)
         /* increase player profile and version when 3D or UHD disc is detected */
 
         if (index->indx_version >= ('0' << 24 | '3' << 16 | '0' << 8 | '0')) {
-            BD_DEBUG(DBG_CRIT | DBG_BLURAY, "WARNING: BluRay profile 6 BD-J menu support is experimental\n");
+            BD_DEBUG(DBG_BLURAY, "Detected 4K UltraHD (profile 6) disc\n");
             /* Switch to UHD profile */
             psr_init_UHD(bd->regs, 1);
         }
         if (((index->indx_version >> 16) & 0xff) == '2') {
             if (index->app_info.content_exist_flag) {
+                BD_DEBUG(DBG_BLURAY, "Detected Blu-Ray 3D (profile 5) disc\n");
                 /* Switch to 3D profile */
                 psr_init_3D(bd->regs, index->app_info.initial_output_mode_preference, 0);
             }
@@ -1416,7 +1416,6 @@ void bd_bdj_osd_cb(BLURAY *bd, const unsigned *img, int w, int h,
  * BD-J
  */
 
-#ifndef MS_APP
 static int _start_bdj(BLURAY *bd, unsigned title)
 {
     if (bd->bdjava == NULL) {
@@ -1429,37 +1428,30 @@ static int _start_bdj(BLURAY *bd, unsigned title)
 
     return !bdj_process_event(bd->bdjava, BDJ_EVENT_START, title);
 }
-#endif
 
 static int _bdj_event(BLURAY *bd, unsigned ev, unsigned param)
 {
-#ifndef MS_APP
     if (bd->bdjava != NULL) {
         return bdj_process_event(bd->bdjava, ev, param);
     }
-#endif
     return -1;
 }
 
 static void _stop_bdj(BLURAY *bd)
 {
-#ifndef MS_APP
     if (bd->bdjava != NULL) {
         bdj_process_event(bd->bdjava, BDJ_EVENT_STOP, 0);
         _queue_event(bd, BD_EVENT_STILL, 0);
         _queue_event(bd, BD_EVENT_KEY_INTEREST_TABLE, 0);
     }
-#endif
 }
 
 static void _close_bdj(BLURAY *bd)
 {
-#ifndef MS_APP
     if (bd->bdjava != NULL) {
         bdj_close(bd->bdjava);
         bd->bdjava = NULL;
     }
-#endif
 }
 
 /*
@@ -1585,9 +1577,7 @@ void bd_close(BLURAY *bd)
         return;
     }
 
-#ifndef MS_APP
     _close_bdj(bd);
-#endif
 
     _close_m2ts(&bd->st0);
     _close_preload(&bd->st_ig);
@@ -1605,9 +1595,7 @@ void bd_close(BLURAY *bd)
 
     event_queue_destroy(&bd->event_queue);
     array_free((void**)&bd->titles);
-#ifndef MS_APP
     bdj_config_cleanup(&bd->bdj_config);
-#endif
 
     disc_close(&bd->disc);
 
@@ -2432,6 +2420,11 @@ static int _add_known_playlist(BD_DISC *p, const char *mpls_id)
 
 static int _open_playlist(BLURAY *bd, const char *f_name, unsigned angle)
 {
+    if (!bd->title_list && bd->title_type == title_undef) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "open_playlist(%s): bd_play() or bd_get_titles() not called\n", f_name);
+        disc_event(bd->disc, DISC_EVENT_START, bd->disc_info.num_titles);
+    }
+
     _close_playlist(bd);
 
     bd->title = nav_title_open(bd->disc, f_name, angle);
@@ -3014,9 +3007,6 @@ void bd_select_stream(BLURAY *bd, uint32_t stream_type, uint32_t stream_id, uint
 
 int bd_start_bdj(BLURAY *bd, const char *start_object)
 {
-#ifdef MS_APP
-	return 0;
-#else
     const BLURAY_TITLE *t;
     unsigned int title_num = atoi(start_object);
     unsigned ii;
@@ -3047,16 +3037,13 @@ int bd_start_bdj(BLURAY *bd, const char *start_object)
     }
 
     return 0;
-#endif
  }
 
 void bd_stop_bdj(BLURAY *bd)
 {
-#ifndef MS_APP
     bd_mutex_lock(&bd->mutex);
     _close_bdj(bd);
     bd_mutex_unlock(&bd->mutex);
-#endif
 }
 
 /*
@@ -3286,10 +3273,6 @@ static void _queue_initial_psr_events(BLURAY *bd)
 
 static int _play_bdj(BLURAY *bd, unsigned title)
 {
-#ifdef MS_APP
-	BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Can't play BD-J title %d\n", title);
-	return -1;
-#else
     int result;
 
     bd->title_type = title_bdj;
@@ -3302,7 +3285,6 @@ static int _play_bdj(BLURAY *bd, unsigned title)
     }
 
     return result;
-#endif
 }
 
 static int _play_hdmv(BLURAY *bd, unsigned id_ref)
