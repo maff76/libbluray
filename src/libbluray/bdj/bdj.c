@@ -22,7 +22,6 @@
 #include "config.h"
 #endif
 
-#ifndef MS_APP
 #include "bdj.h"
 
 #include "native/register_native.h"
@@ -127,6 +126,10 @@ static void *_load_jvm_win32(const char **p_java_home)
     if (r != ERROR_SUCCESS) {
         /* Try Java 9 */
         wcscpy(buf_loc, L"SOFTWARE\\JavaSoft\\JRE\\");
+        r = RegOpenKeyExW(HKEY_LOCAL_MACHINE, buf_loc, 0, KEY_READ, &hkey);
+    }
+    if (r != ERROR_SUCCESS) {
+        wcscpy(buf_loc, L"SOFTWARE\\JavaSoft\\JDK\\");
         r = RegOpenKeyExW(HKEY_LOCAL_MACHINE, buf_loc, 0, KEY_READ, &hkey);
     }
 # endif
@@ -406,10 +409,9 @@ static void *_load_jvm(const char **p_java_home, const char *app_java_home)
                                             "/usr/lib/jvm/default-java",
                                             "/usr/lib/jvm/default",
                                             "/usr/lib/jvm/",
-                                            "/etc/java-config-2/current-system-vm",                                            
+                                            "/etc/java-config-2/current-system-vm",
                                             "/usr/lib/jvm/java-8-openjdk",
                                             "/usr/lib/jvm/java-8-openjdk-" JAVA_ARCH,
-                                            "/usr/lib/jvm/java-6-openjdk",
                                             "/usr/lib/jvm/java-11-openjdk",
                                             "/usr/lib/jvm/java-11-openjdk-" JAVA_ARCH,
 #    endif
@@ -444,12 +446,6 @@ static void *_load_jvm(const char **p_java_home, const char *app_java_home)
     if (java_home) {
         BD_DEBUG(DBG_BDJ, "Using JAVA_HOME '%s'\n", java_home);
         *p_java_home = java_home;
-#if defined(_WIN32) && !defined(HAVE_BDJ_J2ME)
-        handle = _load_jvm_win32(p_java_home);
-        if (handle) {
-            return handle;
-        }
-#endif
         return _jvm_dlopen_a(java_home, jvm_dir, num_jvm_dir, jvm_lib);
     }
 
@@ -1202,4 +1198,3 @@ int bdj_process_event(BDJAVA *bdjava, unsigned ev, unsigned param)
 
     return result;
 }
-#endif
