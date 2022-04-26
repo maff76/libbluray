@@ -226,6 +226,17 @@ public abstract class BDFileSystem extends FileSystem {
     public boolean isAbsolute(File f) {
         return fs.isAbsolute(f);
     }
+    
+    public boolean isInvalid(File f) {
+        try {
+            Method m = fs.getClass().getDeclaredMethod("isInvalid", new Class[] { File.class });
+            Object[] args = new Object[] {(Object)f};
+            Boolean result = (Boolean)m.invoke(fs, args);
+            return result.booleanValue();
+        } finally {
+            return false;
+        }
+    }
 
     public String resolve(File f) {
         if (!booted)
