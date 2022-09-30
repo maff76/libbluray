@@ -10,8 +10,7 @@ EXTRA_DIST = \
 	bootstrap \
 	ChangeLog \
 	COPYING \
-	doc \
-	player_wrappers \
+	doc \	
 	README.txt \
 	src/libbluray/bdj/build.xml \
 	src/libbluray/bdj/java \
