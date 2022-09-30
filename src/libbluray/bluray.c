@@ -1188,6 +1188,286 @@ int bd_bdj_seek(BLURAY *bd, int playitem, int playmark, int64_t time)
     bd_mutex_unlock(&bd->mutex);
 
     return 1;
+}
+
+static int _bd_set_virtual_package(BLURAY *bd, const char *vp_path, int psr_init_backup)
+{
+    if (bd->title) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "bd_set_virtual_package() failed: playlist is playing\n");
+        return -1;
+    }
+    if (bd->title_type != title_bdj) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "bd_set_virtual_package() failed: HDMV title\n");
+        return -1;
+    }
+
+    if (psr_init_backup) {
+        bd_psr_reset_backup_registers(bd->regs);
+    }
+
+    disc_update(bd->disc, vp_path);
+
+    /* TODO: reload all cached information, update disc info, notify app */
+
+    return 0;
+}
+
+int bd_set_virtual_package(BLURAY *bd, const char *vp_path, int psr_init_backup)
+{
+    int ret;
+    bd_mutex_lock(&bd->mutex);
+    ret = _bd_set_virtual_package(bd, vp_path, psr_init_backup);
+    bd_mutex_unlock(&bd->mutex);
+    return ret;
+}
+
+BD_DISC *bd_get_disc(BLURAY *bd)
+{
+    return bd ? bd->disc : NULL;
+}
+
+uint32_t bd_reg_read(BLURAY *bd, int psr, int reg)
+{
+    if (psr) {
+        return bd_psr_read(bd->regs, reg);
+    } else {
+        return bd_gpr_read(bd->regs, reg);
+    }
+}
+
+int bd_reg_write(BLURAY *bd, int psr, int reg, uint32_t value, uint32_t psr_value_mask)
+{
+    if (psr) {
+        if (psr < 102) {
+            /* avoid deadlocks (psr_write triggers callbacks that may lock this mutex) */
+            bd_mutex_lock(&bd->mutex);
+        }
+        int res = bd_psr_write_bits(bd->regs, reg, value, psr_value_mask);
+        if (psr < 102) {
+            bd_mutex_unlock(&bd->mutex);
+        }
+        return res;
+    } else {
+        return bd_gpr_write(bd->regs, reg, value);
+    }
+}
+
+BD_ARGB_BUFFER *bd_lock_osd_buffer(BLURAY *bd)
+{
+    bd_mutex_lock(&bd->argb_buffer_mutex);
+    return bd->argb_buffer;
+}
+
+void bd_unlock_osd_buffer(BLURAY *bd)
+{
+    bd_mutex_unlock(&bd->argb_buffer_mutex);
+}
+
+/*
+ * handle graphics updates from BD-J layer
+ */
+void bd_bdj_osd_cb(BLURAY *bd, const unsigned *img, int w, int h,
+                   int x0, int y0, int x1, int y1)
+{
+    BD_ARGB_OVERLAY aov;
+
+    if (!bd->argb_overlay_proc) {
+        _queue_event(bd, BD_EVENT_MENU, 0);
+        return;
+    }
+
+    memset(&aov, 0, sizeof(aov));
+    aov.pts   = -1;
+    aov.plane = BD_OVERLAY_IG;
+
+    /* no image data -> init or close */
+    if (!img) {
+        if (w > 0 && h > 0) {
+            aov.cmd = BD_ARGB_OVERLAY_INIT;
+            aov.w   = w;
+            aov.h   = h;
+            _queue_event(bd, BD_EVENT_MENU, 1);
+        } else {
+            aov.cmd = BD_ARGB_OVERLAY_CLOSE;
+            _queue_event(bd, BD_EVENT_MENU, 0);
+        }
+
+        bd->argb_overlay_proc(bd->argb_overlay_proc_handle, &aov);
+        return;
+    }
+
+    /* no changed pixels ? */
+    if (x1 < x0 || y1 < y0) {
+        return;
+    }
+
+    /* pass only changed region */
+    if (bd->argb_buffer && (bd->argb_buffer->width < w || bd->argb_buffer->height < h)) {
+        aov.argb   = img;
+    } else {
+        aov.argb   = img + x0 + y0 * w;
+    }
+    aov.stride = w;
+    aov.x      = x0;
+    aov.y      = y0;
+    aov.w      = x1 - x0 + 1;
+    aov.h      = y1 - y0 + 1;
+
+    if (bd->argb_buffer) {
+        /* set dirty region */
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].x0 = x0;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].x1 = x1;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].y0 = y0;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].y1 = y1;
+    }
+
+    /* draw */
+    aov.cmd = BD_ARGB_OVERLAY_DRAW;
+    bd->argb_overlay_proc(bd->argb_overlay_proc_handle, &aov);
+
+    /* commit changes */
+    aov.cmd = BD_ARGB_OVERLAY_FLUSH;
+    bd->argb_overlay_proc(bd->argb_overlay_proc_handle, &aov);
+
+    if (bd->argb_buffer) {
+        /* reset dirty region */
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].x0 = bd->argb_buffer->width;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].x1 = bd->argb_buffer->height;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].y0 = 0;
+        bd->argb_buffer->dirty[BD_OVERLAY_IG].y1 = 0;
+    }
+}
+
+/*
+ * BD-J
+ */
+
+static int _start_bdj(BLURAY *bd, unsigned title)
+{
+    if (bd->bdjava == NULL) {
+        const char *root = disc_root(bd->disc);
+        bd->bdjava = bdj_open(root, bd, bd->disc_info.bdj_disc_id, &bd->bdj_config);
+        if (!bd->bdjava) {
+            return 0;
+        }
+    }
+
+    return !bdj_process_event(bd->bdjava, BDJ_EVENT_START, title);
+}
+
+static int _bdj_event(BLURAY *bd, unsigned ev, unsigned param)
+{
+    if (bd->bdjava != NULL) {
+        return bdj_process_event(bd->bdjava, ev, param);
+    }
+    return -1;
+}
+
+static void _stop_bdj(BLURAY *bd)
+{
+    if (bd->bdjava != NULL) {
+        bdj_process_event(bd->bdjava, BDJ_EVENT_STOP, 0);
+        _queue_event(bd, BD_EVENT_STILL, 0);
+        _queue_event(bd, BD_EVENT_KEY_INTEREST_TABLE, 0);
+    }
+}
+
+static void _close_bdj(BLURAY *bd)
+{
+    if (bd->bdjava != NULL) {
+        bdj_close(bd->bdjava);
+        bd->bdjava = NULL;
+    }
+}
+
+/*
+ * open / close
+ */
+
+BLURAY *bd_init(void)
+{
+    char *env;
+
+    BD_DEBUG(DBG_BLURAY, "libbluray version "BLURAY_VERSION_STRING"\n");
+
+    BLURAY *bd = calloc(1, sizeof(BLURAY));
+
+    if (!bd) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Can't allocate memory\n");
+        return NULL;
+    }
+
+    bd->regs = bd_registers_init();
+                  void *handle,
+                  struct bd_dir_s *(*open_dir)(void *handle, const char *rel_path),
+                  struct bd_file_s *(*open_file)(void *handle, const char *rel_path))
+{
+    if (!open_dir || !open_file) {
+        return 0;
+    }
+
+    fs_access fs = { handle, NULL, open_dir, open_file };
+    return _bd_open(bd, NULL, NULL, &fs);
+}
+
+BLURAY *bd_open(const char *device_path, const char *keyfile_path)
+{
+    BLURAY *bd;
+
+    bd = bd_init();
+    if (!bd) {
+        return NULL;
+    }
+
+    if (!bd_open_disc(bd, device_path, keyfile_path)) {
+        bd_close(bd);
+        return NULL;
+    }
+
+    return bd;
+}
+
+void bd_close(BLURAY *bd)
+{
+    if (!bd) {
+        return;
+    }
+
+    _close_bdj(bd);
+
+    _close_m2ts(&bd->st0);
+    _close_preload(&bd->st_ig);
+    _close_preload(&bd->st_textst);
+
+    nav_free_title_list(&bd->title_list);
+    nav_title_close(&bd->title);
+
+    hdmv_vm_free(&bd->hdmv_vm);
+
+    gc_free(&bd->graphics_controller);
+    meta_free(&bd->meta);
+    sound_free(&bd->sound_effects);
+    bd_registers_free(bd->regs);
+
+    event_queue_destroy(&bd->event_queue);
+    array_free((void**)&bd->titles);
+    bdj_config_cleanup(&bd->bdj_config);
+
+    disc_close(&bd->disc);
+
+    bd_mutex_destroy(&bd->mutex);
+    bd_mutex_destroy(&bd->argb_buffer_mutex);
+
+    BD_DEBUG(DBG_BLURAY, "BLURAY destroyed!\n");
+
+    X_FREE(bd);
+}
+
+/*
+ * PlayMark tracking
+ */
+
+static void _find_next_playmark(BLURAY *bd)
     uint32_t clip_pkt, out_pkt;
     const NAV_CLIP *clip;
 
@@ -1328,6 +1608,216 @@ static int64_t _clip_seek_time(BLURAY *bd, uint32_t tick)
 }
 
 static int _bd_read(BLURAY *bd, unsigned char *buf, int len)
+static int _bd_read_locked(BLURAY *bd, unsigned char *buf, int len)
+{
+    BD_STREAM *st = &bd->st0;
+    int r;
+
+    if (!st->fp) {
+        BD_DEBUG(DBG_STREAM | DBG_CRIT, "bd_read(): no valid title selected!\n");
+        return -1;
+    }
+
+    if (st->clip == NULL) {
+        // We previously reached the last clip.  Nothing
+        // else to read.
+        _queue_event(bd, BD_EVENT_END_OF_TITLE, 0);
+        bd->end_of_playlist |= 1;
+        return 0;
+    }
+
+    BD_DEBUG(DBG_STREAM, "Reading [%d bytes] at %" PRIu64 "...\n", len, bd->s_pos);
+
+    r = _bd_read(bd, buf, len);
+
+    /* mark tracking */
+    if (bd->next_mark >= 0 && bd->s_pos > bd->next_mark_pos) {
+        _playmark_reached(bd);
+    }
+
+    return r;
+}
+
+int bd_read(BLURAY *bd, unsigned char *buf, int len)
+{
+    int result;
+
+    bd_mutex_lock(&bd->mutex);
+    result = _bd_read_locked(bd, buf, len);
+    bd_mutex_unlock(&bd->mutex);
+
+    return result;
+}
+
+int bd_read_skip_still(BLURAY *bd)
+{
+    BD_STREAM *st = &bd->st0;
+    int ret = 0;
+
+    bd_mutex_lock(&bd->mutex);
+
+    if (st->clip) {
+        if (st->clip->still_mode == BLURAY_STILL_TIME) {
+            st->clip = nav_next_clip(bd->title, st->clip);
+            if (st->clip) {
+                ret = _open_m2ts(bd, st);
+            }
+        }
+    }
+
+    bd_mutex_unlock(&bd->mutex);
+
+    return ret;
+}
+
+/*
+ * synchronous sub paths
+ */
+
+static int _preload_textst_subpath(BLURAY *bd)
+{
+    uint8_t        char_code      = BLURAY_TEXT_CHAR_CODE_UTF8;
+    int            textst_subpath = -1;
+
+    bd->st0.clip = NULL;
+
+    /* reset UO mask */
+    memset(&bd->st0.uo_mask, 0, sizeof(BD_UO_MASK));
+    memset(&bd->gc_uo_mask,  0, sizeof(BD_UO_MASK));
+    _update_uo_mask(bd);
+}
+
+static int _add_known_playlist(BD_DISC *p, const char *mpls_id)
+{
+    char *old_mpls_ids;
+    char *new_mpls_ids = NULL;
+    int result = -1;
+
+    old_mpls_ids = disc_property_get(p, DISC_PROPERTY_PLAYLISTS);
+    if (!old_mpls_ids) {
+        return disc_property_put(p, DISC_PROPERTY_PLAYLISTS, mpls_id);
+    }
+
+    /* no duplicates */
+    if (str_strcasestr(old_mpls_ids, mpls_id)) {
+        goto out;
+    }
+
+    new_mpls_ids = str_printf("%s,%s", old_mpls_ids, mpls_id);
+    if (new_mpls_ids) {
+        result = disc_property_put(p, DISC_PROPERTY_PLAYLISTS, new_mpls_ids);
+    }
+
+ out:
+    X_FREE(old_mpls_ids);
+    X_FREE(new_mpls_ids);
+    return result;
+}
+
+static int _open_playlist(BLURAY *bd, const char *f_name, unsigned angle)
+{
+    if (!bd->title_list && bd->title_type == title_undef) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "open_playlist(%s): bd_play() or bd_get_titles() not called\n", f_name);
+        disc_event(bd->disc, DISC_EVENT_START, bd->disc_info.num_titles);
+    }
+
+    _close_playlist(bd);
+
+    bd->title = nav_title_open(bd->disc, f_name, angle);
+    if (bd->title == NULL) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Unable to open title %s!\n", f_name);
+        return 0;
+    }
+
+    bd->seamless_angle_change = 0;
+    bd->s_pos = 0;
+    bd->end_of_playlist = 0;
+    bd->st0.ig_pid = 0;
+
+    // Get the initial clip of the playlist
+    bd->st0.clip = nav_next_clip(bd->title, NULL);
+
+    _update_playlist_psrs(bd);
+
+    if (_open_m2ts(bd, &bd->st0)) {
+        BD_DEBUG(DBG_BLURAY, "Title %s selected\n", f_name);
+
+        _find_next_playmark(bd);
+
+        _preload_subpaths(bd);
+
+        bd->st0.seek_flag = 1;
+
+        /* remember played playlists when using menus */
+        if (bd->title_type != title_undef) {
+            _add_known_playlist(bd->disc, bd->title->name);
+        }
+
+        /* inform application about current streams (redundant) */
+        bd_psr_lock(bd->regs);
+        _queue_event(bd, BD_EVENT_AUDIO_STREAM, bd_psr_read(bd->regs, PSR_PRIMARY_AUDIO_ID));
+        {
+            uint32_t pgreg = bd_psr_read(bd->regs, PSR_PG_STREAM);
+            _queue_event(bd, BD_EVENT_PG_TEXTST,        !!(pgreg & 0x80000000));
+            _queue_event(bd, BD_EVENT_PG_TEXTST_STREAM,    pgreg & 0xfff);
+        }
+        bd_psr_unlock(bd->regs);
+
+        return 1;
+    }
+    return 0;
+}
+
+int bd_select_playlist(BLURAY *bd, uint32_t playlist)
+{
+    char *f_name;
+    int result;
+
+    f_name = str_printf("%05d.mpls", playlist);
+    if (!f_name) {
+        return 0;
+    }
+
+    bd_mutex_lock(&bd->mutex);
+
+    if (bd->title_list) {
+        /* update current title */
+        unsigned i;
+        for (i = 0; i < bd->title_list->count; i++) {
+            if (playlist == bd->title_list->title_info[i].mpls_id) {
+                bd->title_idx = i;
+                break;
+            }
+        }
+    }
+
+    result = _open_playlist(bd, f_name, 0);
+
+    bd_mutex_unlock(&bd->mutex);
+
+    X_FREE(f_name);
+    return result;
+}
+
+/* BD-J callback */
+static int _play_playlist_at(BLURAY *bd, int playlist, int playitem, int playmark, int64_t time)
+{
+    if (playlist < 0) {
+        _close_playlist(bd);
+        return 1;
+    }
+
+    if (!bd_select_playlist(bd, playlist)) {
+        return 0;
+    }
+
+    bd->bdj_wait_start = 1;  /* playback is triggered by bd_select_rate() */
+
+    bd_bdj_seek(bd, playitem, playmark, time);
+
+    return 1;
+}
+
 /* BD-J callback */
 int bd_play_playlist_at(BLURAY *bd, int playlist, int playitem, int playmark, int64_t time)
 {
@@ -1468,6 +1958,146 @@ int bd_get_main_title(BLURAY *bd)
 {
     if (!bd) {
         return -1;
+    }
+    if (bd->title_type != title_undef) {
+        BD_DEBUG(DBG_CRIT | DBG_BLURAY, "bd_get_main_title() can't be used with BluRay menus\n");
+    }
+
+    if (bd->title_list == NULL) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Title list not yet read!\n");
+        return -1;
+    }
+
+    return bd->title_list->main_title_idx;
+}
+
+static int _copy_streams(const NAV_CLIP *clip, BLURAY_STREAM_INFO **pstreams,
+                         const MPLS_STREAM *si, int count)
+{
+    BLURAY_STREAM_INFO *streams;
+    int ii;
+
+    if (!count) {
+        return 1;
+    }
+    streams = *pstreams = calloc(count, sizeof(BLURAY_STREAM_INFO));
+    if (!streams) {
+        return 0;
+    }
+
+    for (ii = 0; ii < count; ii++) {
+        streams[ii].coding_type = si[ii].coding_type;
+        streams[ii].format = si[ii].format;
+        streams[ii].rate = si[ii].rate;
+        streams[ii].char_code = si[ii].char_code;
+        memcpy(streams[ii].lang, si[ii].lang, 4);
+        streams[ii].pid = si[ii].pid;
+        streams[ii].aspect = nav_clip_lookup_aspect(clip, si[ii].pid);
+        if ((si->stream_type == 2) || (si->stream_type == 3))
+            streams[ii].subpath_id = si->subpath_id;
+        else
+            streams[ii].subpath_id = -1;
+    }
+
+    return 1;
+}
+
+static BLURAY_TITLE_INFO* _fill_title_info(NAV_TITLE* title, uint32_t title_idx, uint32_t playlist)
+{
+    BLURAY_TITLE_INFO *title_info;
+    unsigned int ii;
+
+    title_info = calloc(1, sizeof(BLURAY_TITLE_INFO));
+    if (!title_info) {
+        goto error;
+    }
+    title_info->idx = title_idx;
+    title_info->playlist = playlist;
+    title_info->duration = (uint64_t)title->duration * 2;
+    title_info->angle_count = title->angle_count;
+    title_info->chapter_count = title->chap_list.count;
+    if (title_info->chapter_count) {
+        title_info->chapters = calloc(title_info->chapter_count, sizeof(BLURAY_TITLE_CHAPTER));
+        if (!title_info->chapters) {
+            goto error;
+        }
+        for (ii = 0; ii < title_info->chapter_count; ii++) {
+            title_info->chapters[ii].idx = ii;
+            title_info->chapters[ii].start = (uint64_t)title->chap_list.mark[ii].title_time * 2;
+            title_info->chapters[ii].duration = (uint64_t)title->chap_list.mark[ii].duration * 2;
+            title_info->chapters[ii].offset = (uint64_t)title->chap_list.mark[ii].title_pkt * 192L;
+            title_info->chapters[ii].clip_ref = title->chap_list.mark[ii].clip_ref;
+        }
+    }
+    title_info->mark_count = title->mark_list.count;
+    if (title_info->mark_count) {
+        title_info->marks = calloc(title_info->mark_count, sizeof(BLURAY_TITLE_MARK));
+        if (!title_info->marks) {
+            goto error;
+        }
+        for (ii = 0; ii < title_info->mark_count; ii++) {
+            title_info->marks[ii].idx = ii;
+            title_info->marks[ii].type = title->mark_list.mark[ii].mark_type;
+            title_info->marks[ii].start = (uint64_t)title->mark_list.mark[ii].title_time * 2;
+            title_info->marks[ii].duration = (uint64_t)title->mark_list.mark[ii].duration * 2;
+            title_info->marks[ii].offset = (uint64_t)title->mark_list.mark[ii].title_pkt * 192L;
+            title_info->marks[ii].clip_ref = title->mark_list.mark[ii].clip_ref;
+        }
+    }
+    title_info->clip_count = title->clip_list.count;
+    if (title_info->clip_count) {
+        title_info->clips = calloc(title_info->clip_count, sizeof(BLURAY_CLIP_INFO));
+        if (!title_info->clips) {
+            goto error;
+        }
+        for (ii = 0; ii < title_info->clip_count; ii++) {
+            BLURAY_CLIP_INFO *ci = &title_info->clips[ii];
+            const MPLS_PI *pi = &title->pl->play_item[ii];
+            const NAV_CLIP *nc = &title->clip_list.clip[ii];
+
+            memcpy(ci->clip_id, pi->clip->clip_id, sizeof(ci->clip_id));
+            ci->pkt_count = nc->end_pkt - nc->start_pkt;
+            ci->start_time = (uint64_t)nc->title_time * 2;
+            ci->in_time = (uint64_t)pi->in_time * 2;
+            ci->out_time = (uint64_t)pi->out_time * 2;
+            ci->still_mode = pi->still_mode;
+            ci->still_time = pi->still_time;
+            ci->video_stream_count = pi->stn.num_video;
+            ci->audio_stream_count = pi->stn.num_audio;
+            ci->pg_stream_count = pi->stn.num_pg + pi->stn.num_pip_pg;
+            ci->ig_stream_count = pi->stn.num_ig;
+            ci->sec_video_stream_count = pi->stn.num_secondary_video;
+            ci->sec_audio_stream_count = pi->stn.num_secondary_audio;
+            if (!_copy_streams(nc, &ci->video_streams, pi->stn.video, ci->video_stream_count) ||
+                !_copy_streams(nc, &ci->audio_streams, pi->stn.audio, ci->audio_stream_count) ||
+                !_copy_streams(nc, &ci->pg_streams, pi->stn.pg, ci->pg_stream_count) ||
+                !_copy_streams(nc, &ci->ig_streams, pi->stn.ig, ci->ig_stream_count) ||
+                !_copy_streams(nc, &ci->sec_video_streams, pi->stn.secondary_video, ci->sec_video_stream_count) ||
+                !_copy_streams(nc, &ci->sec_audio_streams, pi->stn.secondary_audio, ci->sec_audio_stream_count)) {
+
+                goto error;
+            }
+        }
+    }
+
+    title_info->mvc_base_view_r_flag = title->pl->app_info.mvc_base_view_r_flag;
+
+    return title_info;
+
+ error:
+    BD_DEBUG(DBG_CRIT, "Out of memory\n");
+    bd_free_title_info(title_info);
+    return NULL;
+}
+
+static BLURAY_TITLE_INFO *_get_title_info(BLURAY *bd, uint32_t title_idx, uint32_t playlist, const char *mpls_name,
+                                          unsigned angle)
+{
+    NAV_TITLE *title;
+    BLURAY_TITLE_INFO *title_info;
+
+    /* current title ? => no need to load mpls file */
+    bd_mutex_lock(&bd->mutex);
         }
         X_FREE(title_info);
     }
@@ -1748,6 +2378,146 @@ static void _process_psr_change_event(BLURAY *bd, const BD_PSR_EVENT *ev)
         default:;
     }
 }
+
+static void _process_psr_event(void *handle, const BD_PSR_EVENT *ev)
+{
+    BLURAY *bd = (BLURAY*)handle;
+
+    switch(ev->ev_type) {
+        case BD_PSR_WRITE:
+            _process_psr_write_event(bd, ev);
+            break;
+        case BD_PSR_CHANGE:
+            _process_psr_change_event(bd, ev);
+            break;
+        case BD_PSR_RESTORE:
+            _process_psr_restore_event(bd, ev);
+            break;
+
+        case BD_PSR_SAVE:
+            BD_DEBUG(DBG_BLURAY, "PSR save event\n");
+            break;
+        default:
+            BD_DEBUG(DBG_BLURAY, "PSR event %d: psr%u = %u\n", ev->ev_type, ev->psr_idx, ev->new_val);
+            break;
+    }
+}
+
+static void _queue_initial_psr_events(BLURAY *bd)
+{
+    const uint32_t psrs[] = {
+        PSR_ANGLE_NUMBER,
+        PSR_TITLE_NUMBER,
+        PSR_IG_STREAM_ID,
+        PSR_PRIMARY_AUDIO_ID,
+        PSR_PG_STREAM,
+        PSR_SECONDARY_AUDIO_VIDEO,
+    };
+    unsigned ii;
+    BD_PSR_EVENT ev;
+
+    ev.ev_type = BD_PSR_CHANGE;
+    ev.old_val = 0;
+
+    for (ii = 0; ii < sizeof(psrs) / sizeof(psrs[0]); ii++) {
+        ev.psr_idx = psrs[ii];
+        ev.new_val = bd_psr_read(bd->regs, psrs[ii]);
+
+        _process_psr_change_event(bd, &ev);
+    }
+}
+
+static int _play_bdj(BLURAY *bd, unsigned title)
+{
+    int result;
+
+    bd->title_type = title_bdj;
+
+    result = _start_bdj(bd, title);
+    if (result <= 0) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "Can't play BD-J title %d\n", title);
+        bd->title_type = title_undef;
+        _queue_event(bd, BD_EVENT_ERROR, BD_ERROR_BDJ);
+    }
+
+    return result;
+}
+
+static int _play_hdmv(BLURAY *bd, unsigned id_ref)
+{
+    int result = 1;
+
+    _stop_bdj(bd);
+
+    bd->title_type = title_hdmv;
+
+    if (!bd->hdmv_vm) {
+        bd->hdmv_vm = hdmv_vm_init(bd->disc, bd->regs, bd->disc_info.num_titles,
+                                   bd->disc_info.first_play_supported, bd->disc_info.top_menu_supported);
+    }
+
+    if (hdmv_vm_select_object(bd->hdmv_vm, id_ref)) {
+        result = 0;
+    }
+
+    bd->hdmv_suspended = !hdmv_vm_running(bd->hdmv_vm);
+
+    if (result <= 0) {
+        bd->title_type = title_undef;
+        _queue_event(bd, BD_EVENT_ERROR, BD_ERROR_HDMV);
+    }
+
+    return result;
+}
+
+static int _play_title(BLURAY *bd, unsigned title)
+{
+    if (!bd->disc_info.titles) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "_play_title(#%d): No disc index\n", title);
+        return 0;
+    }
+
+    if (bd->disc_info.no_menu_support) {
+        BD_DEBUG(DBG_BLURAY | DBG_CRIT, "_play_title(): no menu support\n");
+        return 0;
+    }
+
+    /* first play object ? */
+    if (title == BLURAY_TITLE_FIRST_PLAY) {
+
+        bd_psr_write(bd->regs, PSR_TITLE_NUMBER, 0xffff); /* 5.2.3.3 */
+
+        if (!bd->disc_info.first_play_supported) {
+            /* no first play title (5.2.3.3) */
+            BD_DEBUG(DBG_BLURAY | DBG_CRIT, "_play_title(): No first play title\n");
+            bd->title_type = title_hdmv;
+            return 1;
+        }
+
+        if (bd->disc_info.first_play->bdj) {
+            return _play_bdj(bd, title);
+        } else {
+            return _play_hdmv(bd, bd->disc_info.first_play->id_ref);
+        }
+    }
+
+    /* bd_play not called ? */
+    if (bd->title_type == title_undef) {
+        BD_DEBUG(DBG_BLURAY|DBG_CRIT, "bd_call_title(): bd_play() not called !\n");
+        return 0;
+    }
+
+    /* top menu ? */
+    if (title == BLURAY_TITLE_TOP_MENU) {
+        if (!bd->disc_info.top_menu_supported) {
+            /* no top menu (5.2.3.3) */
+            BD_DEBUG(DBG_BLURAY | DBG_CRIT, "_play_title(): No top menu title\n");
+            bd->title_type = title_hdmv;
+            return 0;
+        }
+    }
+
+    /* valid title from disc index ? */
     if (title <= bd->disc_info.num_titles) {
 
         bd_psr_write(bd->regs, PSR_TITLE_NUMBER, title); /* 5.2.3.3 */
