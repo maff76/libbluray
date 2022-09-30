@@ -25,57 +25,69 @@
 
 #include "util/strutl.h"
 
+#include <stdlib.h>
 #include <string.h>
 
-#define _DARWIN_C_SOURCE
+#include <sys/types.h>
 #include <sys/stat.h>
-
-#include <DiskArbitration/DADisk.h>
-
-static char *bsdname_get_mountpoint(const char *device_path)
-{
-    char *result = NULL;
-
-    DASessionRef session = DASessionCreate(kCFAllocatorDefault);
-    if (session) {
-        DADiskRef disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, device_path);
-        if (disk) {
-            CFDictionaryRef desc = DADiskCopyDescription(disk);
-            if (desc) {
-                // Get Volume path as CFURL
-                CFURLRef url = CFDictionaryGetValue(desc, kDADiskDescriptionVolumePathKey);
-                if (url) {
-                    // Copy Volume path as C char array
-                    char tmp_path[PATH_MAX];
-                    if (CFURLGetFileSystemRepresentation(url, true, (UInt8*)tmp_path, sizeof(tmp_path))) {
-                        result = str_dup(tmp_path);
-                    }
-                }
-                CFRelease(desc);
-            }
-            CFRelease(disk);
-        }
-        CFRelease(session);
-    }
-
-    return result;
-}
-
+#ifdef HAVE_GETFSSTAT
+#include <sys/mount.h>
+#else
+#include <sys/statvfs.h>
+#endif
 
 char *mount_get_mountpoint(const char *device_path)
 {
     struct stat st;
-    if (stat(device_path, &st) == 0) {
-        // If it's a directory, all is good
-        if (S_ISDIR(st.st_mode)) {
-            return str_dup(device_path);
+#ifdef HAVE_GETFSSTAT
+    struct statfs *mbuf;
+#else
+    struct statvfs *mbuf;
+#endif
+    int fs_count;
+
+    if (stat (device_path, &st) ) {
+        return str_dup(device_path);
+    }
+
+    /* If it's a directory, all is good */
+    if (S_ISDIR(st.st_mode)) {
+        return str_dup(device_path);
+    }
+
+#ifdef HAVE_GETFSSTAT
+    fs_count = getfsstat (NULL, 0, MNT_NOWAIT);
+#else
+    fs_count = getvfsstat (NULL, 0, ST_NOWAIT);
+#endif
+    if (fs_count == -1) {
+        return str_dup(device_path);
+    }
+
+#ifdef HAVE_GETFSSTAT
+    mbuf = calloc (fs_count, sizeof(struct statfs));
+#else
+    mbuf = calloc (fs_count, sizeof(struct statvfs));
+#endif
+    if (!mbuf) {
+        return str_dup(device_path);
+    }
+
+#ifdef HAVE_GETFSSTAT
+    fs_count = getfsstat (mbuf, fs_count * sizeof(struct statfs), MNT_NOWAIT);
+#else
+    fs_count = getvfsstat (mbuf, fs_count * sizeof(struct statvfs), ST_NOWAIT);
+#endif
+
+    char *result = NULL;
+
+    for (int i = 0; i < fs_count; ++i) {
+        if (!strcmp (mbuf[i].f_mntfromname, device_path)) {
+            result = str_dup(mbuf[i].f_mntonname);
+            break;
         }
     }
 
-    char *mountpoint = bsdname_get_mountpoint(device_path);
-    if (mountpoint) {
-        return mountpoint;
-    }
-
-    return str_dup(device_path);
+    free (mbuf);
+    return (result) ? result : str_dup(device_path);
 }
