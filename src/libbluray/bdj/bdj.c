@@ -138,6 +138,76 @@ static void *_load_jvm_win32(const char **p_java_home)
         return NULL;
     }
 
+    r = RegQueryValueExW(hkey, L"CurrentVersion", NULL, &lType, (LPBYTE)buf_vers, &dSize);
+    RegCloseKey(hkey);
+    if (r != ERROR_SUCCESS) {
+        BD_DEBUG(DBG_BDJ | DBG_CRIT, "CurrentVersion registry value not found\n");
+        return NULL;
+    }
+
+    if (debug_mask & DBG_BDJ) {
+        if (!WideCharToMultiByte(CP_UTF8, 0, buf_vers, -1, strbuf, sizeof(strbuf), NULL, NULL)) {
+            strbuf[0] = 0;
+        }
+        BD_DEBUG(DBG_BDJ, "JRE version: %s\n", strbuf);
+    }
+    wcscat(buf_loc, buf_vers);
+
+    dSize = sizeof(buf_loc);
+    r = RegOpenKeyExW(HKEY_LOCAL_MACHINE, buf_loc, 0, KEY_READ, &hkey);
+    if (r != ERROR_SUCCESS) {
+        BD_DEBUG(DBG_BDJ | DBG_CRIT, "Error opening JRE version-specific registry key\n");
+        return NULL;
+    }
+
+    r = RegQueryValueExW(hkey, L"JavaHome", NULL, &lType, (LPBYTE)buf_loc, &dSize);
+
+    if (r == ERROR_SUCCESS) {
+        /* do not fail even if not found */
+        if (WideCharToMultiByte(CP_UTF8, 0, buf_loc, -1, java_home, sizeof(java_home), NULL, NULL)) {
+            *p_java_home = java_home;
+        }
+        BD_DEBUG(DBG_BDJ, "JavaHome: %s\n", java_home);
+
+        wcscat(java_path, buf_loc);
+        wcscat(java_path, L"\\bin");
+    }
+
+    dSize = sizeof(buf_loc);
+    r = RegQueryValueExW(hkey, L"RuntimeLib", NULL, &lType, (LPBYTE)buf_loc, &dSize);
+    RegCloseKey(hkey);
+
+    if (r != ERROR_SUCCESS) {
+        BD_DEBUG(DBG_BDJ | DBG_CRIT, "RuntimeLib registry value not found\n");
+        return NULL;
+    }
+
+
+    void *result = _load_dll(buf_loc, java_path);
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, buf_loc, -1, strbuf, sizeof(strbuf), NULL, NULL)) {
+        strbuf[0] = 0;
+    }
+    if (!result) {
+        BD_DEBUG(DBG_BDJ | DBG_CRIT, "can't open library '%s'\n", strbuf);
+    } else {
+        BD_DEBUG(DBG_BDJ, "Using JRE library %s\n", strbuf);
+    }
+
+    return result;
+}
+#endif
+
+#ifdef _WIN32
+static inline char *_utf8_to_cp(const char *utf8)
+{
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+    if (wlen <= 0) {
+        return NULL;
+    }
+
+    wchar_t *wide = (wchar_t *)malloc(wlen * sizeof(wchar_t));
+    if (!wide) {
         return NULL;
     }
     if (!MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide, wlen)) {
@@ -278,6 +348,76 @@ static void *_load_jli_macos()
 {
     const char *java_home = NULL;
     static const char * const jli_dir[]  = {
+        "jre/lib/jli", "lib/jli",
+    };
+    const unsigned num_jli_dir  = sizeof(jli_dir)  / sizeof(jli_dir[0]);
+
+    static const char jli_lib[] = "libjli";
+    void *handle;
+
+    /* JAVA_HOME set, use it */
+    java_home = getenv("JAVA_HOME");
+    if (java_home) {
+        return _jvm_dlopen_a(java_home, jli_dir, num_jli_dir, jli_lib);
+    }
+
+    java_home = _java_home_macos();
+    if (java_home) {
+        handle = _jvm_dlopen_a(java_home, jli_dir, num_jli_dir, jli_lib);
+        if (handle) {
+            return handle;
+        }
+    }
+    // check if the JRE is installed:
+    return _jvm_dlopen(jre_plugin_path, "lib/jli", jli_lib);
+}
+#endif
+
+static void *_load_jvm(const char **p_java_home, const char *app_java_home)
+{
+#ifdef HAVE_BDJ_J2ME
+# ifdef _WIN32
+    static const char * const jvm_path[] = {NULL, JDK_HOME};
+    static const char * const jvm_dir[]  = {"bin"};
+    static const char         jvm_lib[]  = "cvmi";
+# else
+    static const char * const jvm_path[] = {NULL, JDK_HOME, "/opt/PhoneME"};
+    static const char * const jvm_dir[]  = {"bin"};
+    static const char         jvm_lib[]  = "libcvm";
+# endif
+#else /* HAVE_BDJ_J2ME */
+# ifdef _WIN32
+    static const char * const jvm_path[] = {NULL, JDK_HOME};
+    static const char * const jvm_dir[]  = {"jre\\bin\\server",
+                                            "bin\\server",
+                                            "jre\\bin\\client",
+                                            "bin\\client",
+    };
+    static const char         jvm_lib[]  = "jvm";
+# else
+#  ifdef __APPLE__
+    static const char * const jvm_path[] = {NULL, JDK_HOME, MACOS_JRE_HOME};
+    static const char * const jvm_dir[]  = {"jre/lib/server",
+                                            "lib/server"};
+#  else
+    static const char * const jvm_path[] = {NULL,
+                                            JDK_HOME,
+#    ifdef __FreeBSD__
+                                            "/usr/local/openjdk8",
+                                            "/usr/local/openjdk11",
+                                            "/usr/local/openjdk17",
+#    elif defined(__OpenBSD__)
+                                            "/usr/local/jdk-1.8.0",
+                                            "/usr/local/jdk-11",
+                                            "/usr/local/jdk-17",
+#    else
+                                            "/etc/alternatives/java_sdk_openjdk",
+                                            "/etc/alternatives/java_sdk",
+                                            "/usr/lib/jvm/default-java",
+                                            "/usr/lib/jvm/default",
+                                            "/usr/lib/jvm/",
+                                            "/etc/java-config-2/current-system-vm",
+                                            "/usr/lib/jvm/java-8-openjdk",
                                             "/usr/lib/jvm/java-8-openjdk-" JAVA_ARCH,
                                             "/usr/lib/jvm/java-11-openjdk",
                                             "/usr/lib/jvm/java-11-openjdk-" JAVA_ARCH,
@@ -348,146 +488,6 @@ static void *_load_jli_macos()
     /* try our pre-defined locations */
     for (path_ind = 0; !handle && path_ind < num_jvm_path; path_ind++) {
         if (jvm_path[path_ind] && !jvm_path[path_ind][0]) {
-            /* skip empty JVM_HOME */
-        } else if (jvm_path[path_ind] && file_path_exists(jvm_path[path_ind]) < 0) {
-            BD_DEBUG(DBG_BDJ, "Skipping %s (not found)\n", jvm_path[path_ind]);
-        } else {
-            *p_java_home = jvm_path[path_ind];
-            handle = _jvm_dlopen_a(jvm_path[path_ind], jvm_dir, num_jvm_dir, jvm_lib);
-        }
-    }
-
-    if (!*p_java_home) {
-        *p_java_home = dl_get_path();
-    }
-
-    return handle;
-}
-
-static int _can_read_file(const char *fn)
-{
-    BD_FILE_H *fp;
-
-    if (!fn) {
-        return 0;
-    }
-
-    fp = file_open(fn, "rb");
-    if (fp) {
-        uint8_t b;
-        int result = (int)file_read(fp, &b, 1);
-        file_close(fp);
-        if (result == 1) {
-            return 1;
-        }
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "Error reading %s\n", fn);
-    }
-    return 0;
-}
-
-void bdj_config_cleanup(BDJ_CONFIG *p)
-{
-    X_FREE(p->cache_root);
-    X_FREE(p->persistent_root);
-    X_FREE(p->java_home);
-    X_FREE(p->classpath[0]);
-    X_FREE(p->classpath[1]);
-}
-
-static char *_find_libbluray_jar0()
-{
-    // pre-defined search paths for libbluray.jar
-    static const char * const jar_paths[] = {
-#ifndef _WIN32
-#  if defined(__FreeBSD__) || defined(__OpenBSD__)
-        "/usr/local/share/java/" BDJ_JARFILE,
-#  else
-        "/usr/share/java/" BDJ_JARFILE,
-        "/usr/share/libbluray/lib/" BDJ_JARFILE,
-#  endif
-#endif
-        BDJ_JARFILE,
-    };
-
-    unsigned i;
-
-    // check if overriding the classpath
-    const char *classpath = getenv("LIBBLURAY_CP");
-    if (classpath) {
-        size_t cp_len = strlen(classpath);
-        char *jar;
-
-        // directory or file ?
-        if (cp_len > 0 && (classpath[cp_len - 1] == '/' || classpath[cp_len - 1] == '\\')) {
-            jar = str_printf("%s%s", classpath, BDJ_JARFILE);
-        } else {
-            jar = str_dup(classpath);
-        }
-
-        if (!jar) {
-            BD_DEBUG(DBG_CRIT, "out of memory\n");
-            return NULL;
-        }
-
-        if (_can_read_file(jar)) {
-            return jar;
-        }
-
-        X_FREE(jar);
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "invalid LIBBLURAY_CP %s\n", classpath);
-        return NULL;
-    }
-
-    BD_DEBUG(DBG_BDJ, "LIBBLURAY_CP not set, searching for "BDJ_JARFILE" ...\n");
-
-    // check directory where libbluray.so was loaded from
-    const char *lib_path = dl_get_path();
-    if (lib_path) {
-        for(i =0; i<2; i++) {
-            const char * relinstalldir[2] = { "",
-                                              ".." DIR_SEP "share" DIR_SEP "java" DIR_SEP };
-            char *cp = str_printf("%s%s%s", lib_path, relinstalldir[i], BDJ_JARFILE);
-            if (!cp) {
-                BD_DEBUG(DBG_CRIT, "out of memory\n");
-                return NULL;
-            }
-
-            BD_DEBUG(DBG_BDJ, "Checking %s ...\n", cp);
-            if (_can_read_file(cp)) {
-                BD_DEBUG(DBG_BDJ, "using %s\n", cp);
-                return cp;
-            }
-            X_FREE(cp);
-        }
-    }
-
-    // check pre-defined directories
-    for (i = 0; i < sizeof(jar_paths) / sizeof(jar_paths[0]); i++) {
-        BD_DEBUG(DBG_BDJ, "Checking %s ...\n", jar_paths[i]);
-        if (_can_read_file(jar_paths[i])) {
-            BD_DEBUG(DBG_BDJ, "using %s\n", jar_paths[i]);
-            return str_dup(jar_paths[i]);
-        }
-    }
-
-    BD_DEBUG(DBG_BDJ | DBG_CRIT, BDJ_JARFILE" not found.\n");
-    return NULL;
-}
-
-static char *_find_libbluray_jar1(const char *jar0)
-{
-    char *jar1;
-    int   cut;
-
-    cut = (int)strlen(jar0) - (int)strlen(VERSION) - 9;
-    if (cut <= 0)
-        return NULL;
-
-    jar1 = str_printf("%.*sawt-%s", cut, jar0, jar0 + cut);
-    if (!jar1)
-        return NULL;
-
-    if (!_can_read_file(jar1)) {
         BD_DEBUG(DBG_BDJ | DBG_CRIT, "Cant access AWT jar file %s\n", jar1);
         X_FREE(jar1);
     }
@@ -558,76 +558,6 @@ static const char *_bdj_buda_root(BDJ_CONFIG *storage)
     if (!storage->cache_root) {
 
         root = getenv("LIBBLURAY_CACHE_ROOT");
-                                 param_persistent_root, param_buda_root);
-
-    (*env)->DeleteLocalRef(env, init_class);
-    (*env)->DeleteLocalRef(env, param_disc_id);
-    (*env)->DeleteLocalRef(env, param_disc_root);
-    (*env)->DeleteLocalRef(env, param_persistent_root);
-    (*env)->DeleteLocalRef(env, param_buda_root);
-
-    if ((*env)->ExceptionOccurred(env)) {
-        (*env)->ExceptionDescribe(env);
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "Failed to initialize BD-J (uncaught exception)\n");
-        (*env)->ExceptionClear(env);
-        return 0;
-    }
-
-    return 1;
-}
-
-int bdj_jvm_available(BDJ_CONFIG *storage)
-{
-    const char *java_home = NULL;
-    void* jvm_lib = _load_jvm(&java_home, storage->java_home);
-    if (!jvm_lib) {
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "BD-J check: Failed to load JVM library\n");
-        return BDJ_CHECK_NO_JVM;
-    }
-    dl_dlclose(jvm_lib);
-
-    if (!_find_libbluray_jar(storage)) {
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "BD-J check: Failed to load libbluray.jar\n");
-        return BDJ_CHECK_NO_JAR;
-    }
-
-    BD_DEBUG(DBG_BDJ, "BD-J check: OK\n");
-
-    return BDJ_CHECK_OK;
-}
-
-static int _find_jvm(void *jvm_lib, JNIEnv **env, JavaVM **jvm)
-{
-    fptr_JNI_GetCreatedJavaVMs JNI_GetCreatedJavaVMs_fp;
-
-    *(void **)(&JNI_GetCreatedJavaVMs_fp) = dl_dlsym(jvm_lib, "JNI_GetCreatedJavaVMs");
-    if (JNI_GetCreatedJavaVMs_fp == NULL) {
-        BD_DEBUG(DBG_BDJ | DBG_CRIT, "Couldn't find symbol JNI_GetCreatedJavaVMs.\n");
-        return 0;
-    }
-
-    jsize nVMs = 0;
-    JavaVM* javavm = NULL;
-
-    int result = JNI_GetCreatedJavaVMs_fp(&javavm, 1, &nVMs);
-    if (result == JNI_OK && nVMs > 0) {
-      *jvm = javavm;
-      (**jvm)->AttachCurrentThread(*jvm, (void**)env, NULL);
-      return 1;
-    }
-
-    return 0;
-}
-
-/* Export packages for Xlets */
-static const char * const java_base_exports[] = {
-        "javax.media" ,
-        "javax.media.protocol",
-        "javax.tv.graphics",
-        "javax.tv.service",
-        "javax.tv.service.guide",
-        "javax.tv.service.selection",
-        "javax.tv.service.transport",
         "javax.tv.service.navigation",
         "javax.tv.net",
         "javax.tv.locator",
