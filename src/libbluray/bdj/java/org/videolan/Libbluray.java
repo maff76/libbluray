@@ -278,76 +278,81 @@ public class Libbluray {
         PackageManager.setContentPrefixList(prefix);
         PackageManager.setProtocolPrefixList(prefix);
         PackageManager.commitContentPrefixList();
-        PackageManager.commitProtocolPrefixList();
-
-        try {
-            BDFontMetrics.init();
-        } catch (Throwable t) {
-        }
-
-        byte[] type = getAacsData(4096);
-        String pkg;
-        try {
-            pkg = type != null ? new String(type, "UTF-8") : null;
-            if (pkg != null) {
-                System.out.println("using " + pkg);
+            try {
+                setSecurityManager(null);
+            } catch (Exception ex) {
+                System.err.println("System.setSecurityManager(null) failed: " + ex);
             }
-        } catch (java.io.UnsupportedEncodingException uee) {
-            pkg = null;
+
+            MountManager.unmountAll();
+            GUIManager.shutdown();
+            BDToolkit.shutdownDisc();
+            BDFontMetrics.shutdown();
+            SIManagerImpl.shutdown();
+            IxcRegistry.shutdown();
+            EventManager.shutdown();
+            Status.shutdown();
+            ServiceContextFactoryImpl.shutdown();
+            FontFactory.unloadDiscFonts();
+        } catch (Throwable e) {
+            System.err.println("shutdown() failed: " + e + "\n" + Logger.dumpStack(e));
         }
-
-        System.setProperty("mhp.profile.enhanced_broadcast", "YES");
-        System.setProperty("mhp.profile.interactive_broadcast", "YES");
-        System.setProperty("mhp.profile.internet_access", "YES");
-
-        System.setProperty("mhp.eb.version.major", "1");
-        System.setProperty("mhp.eb.version.minor", "0");
-        System.setProperty("mhp.eb.version.micro", "3");
-        System.setProperty("mhp.ia.version.major", "1");
-        System.setProperty("mhp.ia.version.minor", "0");
-        System.setProperty("mhp.ia.version.micro", "3");
-        System.setProperty("mhp.ib.version.major", "1");
-        System.setProperty("mhp.ib.version.minor", "0");
-        System.setProperty("mhp.ib.version.micro", "3");
-
-        System.setProperty("mhp.option.ip.multicast", "UNSUPPORTED");
-        System.setProperty("mhp.option.dsmcc.uu", "UNSUPPORTED");
-        System.setProperty("mhp.option.dvb.html", "UNSUPPORTED");
-
-        System.setProperty("dvb.returnchannel.timeout", "30");
-
-        /* get profile from PSR */
-        int psr31 = readPSR(RegisterAccess.PSR_PLAYER_PROFILE);
-        int version = psr31 & 0xffff;
-        int profile = psr31 >> 16;
-        boolean p11 = (profile & 0x01) != 0;
-        boolean p2  = (profile & 0x02) != 0;
-        boolean p5  = (profile & 0x10) != 0;
-        boolean p6  = ((profile & 0x1f) == 0) && (version >= 0x0300);
-
-        resetProfile();
-        if (!p6) {
-            System.setProperty("bluray.profile.1", "YES");
-            System.setProperty("bluray.p1.version.major", "1");
-            System.setProperty("bluray.p1.version.minor", p11 ? "1" : "0");
-            System.setProperty("bluray.p1.version.micro", "0");
-
-            System.setProperty("bluray.profile.2", p2 ? "YES" : "NO");
-            System.setProperty("bluray.p2.version.major", "1");
-            System.setProperty("bluray.p2.version.minor", "0");
-            System.setProperty("bluray.p2.version.micro", "0");
+        try {
+            BDJAppProxy.cleanup();
+            CacheDir.remove();
+        } catch (Throwable e) {
+            System.err.println("cleanup failed: " + e + "\n" + Logger.dumpStack(e));
         }
-        if (p5) {
-            System.setProperty("bluray.profile.5", "YES");
-            System.setProperty("bluray.p5.version.major", "1");
-            System.setProperty("bluray.p5.version.minor", "0");
-            System.setProperty("bluray.p5.version.micro", "0");
+        nativePointer = 0;
+        titleInfos = null;
+        synchronized (bdjoFilesLock) {
+            bdjoFiles = null;
         }
-        if (p6) {
-            System.setProperty("bluray.profile.6", "YES");
-            System.setProperty("bluray.p6.version.major", "1");
-            System.setProperty("bluray.p6.version.minor", "0");
-            System.setProperty("bluray.p6.version.micro", "0");
+        classLoaderAdapter = null;
+        loaderAdapter = null;
+        booted = false;
+    }
+
+    /*
+     * Package private
+     */
+
+    /* called by BDJLoader to select HDMV title */
+    protected static boolean selectHdmvTitle(int title) {
+        return selectTitleN(nativePointer, title) == 1 ? true : false;
+    }
+
+    protected static boolean cacheBdRomFile(String path, String cachePath) {
+        return cacheBdRomFileN(nativePointer, path, cachePath) == 0;
+    }
+
+    protected static void setUOMask(boolean menuCallMask, boolean titleSearchMask) {
+        setUOMaskN(nativePointer, menuCallMask, titleSearchMask);
+    }
+
+    protected static void setKeyInterest(int mask) {
+        setKeyInterestN(nativePointer, mask);
+    }
+
+    protected static int setVirtualPackage(String vpPath, boolean initBackupRegs) {
+        return setVirtualPackageN(nativePointer, vpPath, initBackupRegs);
+    }
+
+    /*
+     * Disc titles
+     */
+
+    /* used by javax/tv/service/SIManagerImpl */
+    public static int numTitles() {
+        return titleInfos.length - 2;
+    }
+
+    /* used by org/bluray/ti/TitleImpl */
+    public static TitleInfo getTitleInfo(int titleNum) {
+            int numTitles = numTitles();
+            if (numTitles < 0)
+                return null;
+
             if (titleNum == 0xffff) {
                 return titleInfos[titleInfos.length - 1];
             }
@@ -413,76 +418,6 @@ public class Libbluray {
             throw new IllegalArgumentException("Playlist cannot be negative");
 
         return selectPlaylistN(nativePointer, playlist, playitem, playmark, time) == 1 ? true : false;
-    }
-
-    public static boolean selectPlaylist(int playlist) {
-        return selectPlaylist(playlist, -1, -1, -1);
-    }
-
-    public static void stopPlaylist() {
-        selectPlaylistN(nativePointer, -1, -1, -1, -1);
-    }
-
-    public static long seekTime(long tick) {
-        return seekN(nativePointer, -1, -1, tick);
-    }
-
-    public static long seekMark(int mark) {
-        if (mark < 0)
-            throw new IllegalArgumentException("Mark cannot be negative");
-
-        long result = seekN(nativePointer, -1, mark, -1);
-        if (result == -1)
-            throw new IllegalArgumentException("Seek error");
-        return result;
-    }
-
-    public static long seekPlayItem(int clip) {
-        if (clip < 0)
-            throw new IllegalArgumentException("Mark cannot be negative");
-
-        long result = seekN(nativePointer, clip, -1, -1);
-        if (result == -1)
-            throw new IllegalArgumentException("Seek error");
-        return result;
-    }
-
-    public static boolean selectAngle(int angle) {
-        if (angle < 1)
-            throw new IllegalArgumentException("Angle cannot be negative");
-
-        return selectAngleN(nativePointer, angle) == 1 ? true : false;
-    }
-
-    public static int soundEffect(int id) {
-        return soundEffectN(nativePointer, id);
-    }
-
-    public static int getCurrentAngle() {
-        return readPSR(RegisterAccess.PSR_ANGLE_NR);
-    }
-
-    public static long getUOMask() {
-        return getUOMaskN(nativePointer);
-    }
-
-    public static long tellTime() {
-        return tellTimeN(nativePointer);
-    }
-
-    public static boolean selectRate(float rate) {
-        return selectRateN(nativePointer, rate, 0) == 1 ? true : false;
-    }
-    public static boolean selectRate(float rate, boolean start) {
-        return selectRateN(nativePointer, rate, start ? 1 : 2) == 1 ? true : false;
-    }
-
-    /*
-     * Register access
-     */
-
-    public static void writeGPR(int num, int value) {
-        int ret = writeRegN(nativePointer, 0, num, value, 0xffffffff);
 
         if (ret == -1)
             throw new IllegalArgumentException("Invalid GPR");
