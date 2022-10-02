@@ -469,4 +469,3 @@ class BDJAppProxy implements DVBJProxy, Runnable {
         private boolean done = false;
     }
 }
- 
