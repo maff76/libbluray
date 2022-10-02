@@ -208,76 +208,146 @@ public class Libbluray {
             System.err.println(""+ e);
         }
     }
+        PackageManager.commitProtocolPrefixList();
 
-    private static void resetProfile() {
-        removeProperty("bluray.profile.1");
-        removeProperty("bluray.p1.version.major");
-        removeProperty("bluray.p1.version.minor");
-        removeProperty("bluray.p1.version.micro");
-        removeProperty("bluray.profile.2");
-        removeProperty("bluray.p2.version.major");
-        removeProperty("bluray.p2.version.minor");
-        removeProperty("bluray.p2.version.micro");
-        removeProperty("bluray.profile.5");
-        removeProperty("bluray.p5.version.major");
-        removeProperty("bluray.p5.version.minor");
-        removeProperty("bluray.p5.version.micro");
-        removeProperty("bluray.profile.6");
-        removeProperty("bluray.p6.version.major");
-        removeProperty("bluray.p6.version.minor");
-        removeProperty("bluray.p6.version.micro");
+        try {
+            BDFontMetrics.init();
+        } catch (Throwable t) {
+        }
+
+        byte[] type = getAacsData(4096);
+        String pkg;
+        try {
+            pkg = type != null ? new String(type, "UTF-8") : null;
+            if (pkg != null) {
+                System.out.println("using " + pkg);
+            }
+        } catch (java.io.UnsupportedEncodingException uee) {
+            pkg = null;
+        }
+
+        System.setProperty("mhp.profile.enhanced_broadcast", "YES");
+        System.setProperty("mhp.profile.interactive_broadcast", "YES");
+        System.setProperty("mhp.profile.internet_access", "YES");
+
+        System.setProperty("mhp.eb.version.major", "1");
+        System.setProperty("mhp.eb.version.minor", "0");
+        System.setProperty("mhp.eb.version.micro", "3");
+        System.setProperty("mhp.ia.version.major", "1");
+        System.setProperty("mhp.ia.version.minor", "0");
+        System.setProperty("mhp.ia.version.micro", "3");
+        System.setProperty("mhp.ib.version.major", "1");
+        System.setProperty("mhp.ib.version.minor", "0");
+        System.setProperty("mhp.ib.version.micro", "3");
+
+        System.setProperty("mhp.option.ip.multicast", "UNSUPPORTED");
+        System.setProperty("mhp.option.dsmcc.uu", "UNSUPPORTED");
+        System.setProperty("mhp.option.dvb.html", "UNSUPPORTED");
+
+        System.setProperty("dvb.returnchannel.timeout", "30");
+
+        /* get profile from PSR */
+        int psr31 = readPSR(RegisterAccess.PSR_PLAYER_PROFILE);
+        int version = psr31 & 0xffff;
+        int profile = psr31 >> 16;
+        boolean p11 = (profile & 0x01) != 0;
+        boolean p2  = (profile & 0x02) != 0;
+        boolean p5  = (profile & 0x10) != 0;
+        boolean p6  = ((profile & 0x1f) == 0) && (version >= 0x0300);
+
+        resetProfile();
+        if (!p6) {
+            System.setProperty("bluray.profile.1", "YES");
+            System.setProperty("bluray.p1.version.major", "1");
+            System.setProperty("bluray.p1.version.minor", p11 ? "1" : "0");
+            System.setProperty("bluray.p1.version.micro", "0");
+
+            System.setProperty("bluray.profile.2", p2 ? "YES" : "NO");
+            System.setProperty("bluray.p2.version.major", "1");
+            System.setProperty("bluray.p2.version.minor", "0");
+            System.setProperty("bluray.p2.version.micro", "0");
+        }
+        if (p5) {
+            System.setProperty("bluray.profile.5", "YES");
+            System.setProperty("bluray.p5.version.major", "1");
+            System.setProperty("bluray.p5.version.minor", "0");
+            System.setProperty("bluray.p5.version.micro", "0");
+        }
+        if (p6) {
+            System.setProperty("bluray.profile.6", "YES");
+            System.setProperty("bluray.p6.version.major", "1");
+            System.setProperty("bluray.p6.version.minor", "0");
+            System.setProperty("bluray.p6.version.micro", "0");
+        }
+
+        System.setProperty("bluray.disc.avplayback.readcapability", "NO");
+
+        System.setProperty("bluray.video.fullscreenSD", "YES");
+        System.setProperty("bluray.video.fullscreenSDPG", "YES");
+        System.setProperty("bluray.DynamicRangeConversion.Level", "0");
+
+        System.setProperty("aacs.bluray.online.capability", "YES");
+        System.setProperty("aacs.bluray.mc.capability", "NO");
+
+        System.setProperty("bluray.prefetchedplaylistloading", "NO");
+        System.setProperty("bluray.video.autoresume", "NO");
+
+        System.setProperty("bluray.mediaselect", "NO");
+
+        System.setProperty("bluray.event.extension", "YES");
+
+        System.setProperty("bluray.jmf.subtitlestyle", "YES");
+
+        System.setProperty("bluray.rccapability.release", "YES");
+        System.setProperty("bluray.rccapability.holdandrelease", "YES");
+        System.setProperty("bluray.rccapability.repeatonhold", "NO");
+
+        System.setProperty("bluray.localstorage.level", "5");
+        System.setProperty("bluray.localstorage.maxlevel", "5");
+
+        System.setProperty("bluray.localstorage.removable", "NO");
+        System.setProperty("bluray.localstorage.upgradable", "NO");
+        System.setProperty("bluray.localstorage.name", "HDD");
+
+        System.setProperty("bluray.memory.images", "131072");
+        System.setProperty("bluray.memory.audio", "8192");
+        System.setProperty("bluray.memory.audio_plus_img", "139264");
+        System.setProperty("bluray.memory.java_heap", "32768");
+        System.setProperty("bluray.memory.font_cache", "4096");
+
+        System.setProperty("bluray.network.connected", "YES");
+
+        try {
+            setSecurityManager(new BDJSecurityManager(discRoot, persistentRoot, budaRoot, getJavaMajor()));
+        } catch (Exception ex) {
+            System.err.println("System.setSecurityManager() failed: " + ex);
+            throw new SecurityException("Failed initializing SecurityManager");
+        }
+
+        loadAdapter(System.getProperty("org.videolan.loader.adapter"));
+        loadAdapter(pkg);
+
+        /* get title infos */
+        titleInfos = getTitleInfosN(nativePointer);
+        if (titleInfos == null) {
+            /* this is fatal */
+            throw new Error("getTitleInfos() failed");
+        }
+
+        booted = true;
     }
 
     /* called only from native code */
-    private static void init(long nativePointer, String discID, String discRoot,
-                               String persistentRoot, String budaRoot) {
-
-        initOnce();
-
-        /* set up directories */
-
+    private static void shutdown() {
+        if (nativePointer == 0) {
+            return;
+        }
         try {
-            if (persistentRoot == null) {
-                /* no persistent storage */
-                persistentRoot = CacheDir.create("dvb.persistent.root").getPath() + File.separator;
-            }
-            if (budaRoot == null) {
-                /* no persistent storage for BUDA */
-                budaRoot = CacheDir.create("bluray.bindingunit.root").getPath() + File.separator;
-            }
-        } catch (java.io.IOException e) {
-            System.err.println("Cache creation failed: " + e);
-            /* not fatal with most discs */
-        }
-        if (persistentRoot != null) {
-            persistentRoot = canonicalize(persistentRoot, true);
-        }
-        if (budaRoot != null) {
-            budaRoot = canonicalize(budaRoot, true);
-        }
+            stopTitle(true);
+            BDJLoader.shutdown();
+            BDJActionManager.shutdown();
 
-        System.setProperty("dvb.persistent.root", persistentRoot);
-        System.setProperty("bluray.bindingunit.root", budaRoot);
-
-        if (discRoot != null) {
-            discRoot = canonicalize(discRoot, false);
-            System.setProperty("bluray.vfs.root", discRoot);
-        } else {
-            System.getProperties().remove("bluray.vfs.root");
-        }
-
-        /* */
-
-        Libbluray.nativePointer = nativePointer;
-        DiscManager.getDiscManager().setCurrentDisc(discID);
-
-        BDJActionManager.createInstance();
-
-        Vector prefix = new Vector();
-        prefix.add("org.videolan");
-        PackageManager.setContentPrefixList(prefix);
-        PackageManager.setProtocolPrefixList(prefix);
-        PackageManager.commitContentPrefixList();
+            /* all Xlet contexts (and threads) should be terminated now */
             try {
                 setSecurityManager(null);
             } catch (Exception ex) {
@@ -418,6 +488,76 @@ public class Libbluray {
             throw new IllegalArgumentException("Playlist cannot be negative");
 
         return selectPlaylistN(nativePointer, playlist, playitem, playmark, time) == 1 ? true : false;
+    }
+
+    public static boolean selectPlaylist(int playlist) {
+        return selectPlaylist(playlist, -1, -1, -1);
+    }
+
+    public static void stopPlaylist() {
+        selectPlaylistN(nativePointer, -1, -1, -1, -1);
+    }
+
+    public static long seekTime(long tick) {
+        return seekN(nativePointer, -1, -1, tick);
+    }
+
+    public static long seekMark(int mark) {
+        if (mark < 0)
+            throw new IllegalArgumentException("Mark cannot be negative");
+
+        long result = seekN(nativePointer, -1, mark, -1);
+        if (result == -1)
+            throw new IllegalArgumentException("Seek error");
+        return result;
+    }
+
+    public static long seekPlayItem(int clip) {
+        if (clip < 0)
+            throw new IllegalArgumentException("Mark cannot be negative");
+
+        long result = seekN(nativePointer, clip, -1, -1);
+        if (result == -1)
+            throw new IllegalArgumentException("Seek error");
+        return result;
+    }
+
+    public static boolean selectAngle(int angle) {
+        if (angle < 1)
+            throw new IllegalArgumentException("Angle cannot be negative");
+
+        return selectAngleN(nativePointer, angle) == 1 ? true : false;
+    }
+
+    public static int soundEffect(int id) {
+        return soundEffectN(nativePointer, id);
+    }
+
+    public static int getCurrentAngle() {
+        return readPSR(RegisterAccess.PSR_ANGLE_NR);
+    }
+
+    public static long getUOMask() {
+        return getUOMaskN(nativePointer);
+    }
+
+    public static long tellTime() {
+        return tellTimeN(nativePointer);
+    }
+
+    public static boolean selectRate(float rate) {
+        return selectRateN(nativePointer, rate, 0) == 1 ? true : false;
+    }
+    public static boolean selectRate(float rate, boolean start) {
+        return selectRateN(nativePointer, rate, start ? 1 : 2) == 1 ? true : false;
+    }
+
+    /*
+     * Register access
+     */
+
+    public static void writeGPR(int num, int value) {
+        int ret = writeRegN(nativePointer, 0, num, value, 0xffffffff);
 
         if (ret == -1)
             throw new IllegalArgumentException("Invalid GPR");
