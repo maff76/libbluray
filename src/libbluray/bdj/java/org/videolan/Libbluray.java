@@ -208,6 +208,76 @@ public class Libbluray {
             System.err.println(""+ e);
         }
     }
+
+    private static void resetProfile() {
+        removeProperty("bluray.profile.1");
+        removeProperty("bluray.p1.version.major");
+        removeProperty("bluray.p1.version.minor");
+        removeProperty("bluray.p1.version.micro");
+        removeProperty("bluray.profile.2");
+        removeProperty("bluray.p2.version.major");
+        removeProperty("bluray.p2.version.minor");
+        removeProperty("bluray.p2.version.micro");
+        removeProperty("bluray.profile.5");
+        removeProperty("bluray.p5.version.major");
+        removeProperty("bluray.p5.version.minor");
+        removeProperty("bluray.p5.version.micro");
+        removeProperty("bluray.profile.6");
+        removeProperty("bluray.p6.version.major");
+        removeProperty("bluray.p6.version.minor");
+        removeProperty("bluray.p6.version.micro");
+    }
+
+    /* called only from native code */
+    private static void init(long nativePointer, String discID, String discRoot,
+                               String persistentRoot, String budaRoot) {
+
+        initOnce();
+
+        /* set up directories */
+
+        try {
+            if (persistentRoot == null) {
+                /* no persistent storage */
+                persistentRoot = CacheDir.create("dvb.persistent.root").getPath() + File.separator;
+            }
+            if (budaRoot == null) {
+                /* no persistent storage for BUDA */
+                budaRoot = CacheDir.create("bluray.bindingunit.root").getPath() + File.separator;
+            }
+        } catch (java.io.IOException e) {
+            System.err.println("Cache creation failed: " + e);
+            /* not fatal with most discs */
+        }
+        if (persistentRoot != null) {
+            persistentRoot = canonicalize(persistentRoot, true);
+        }
+        if (budaRoot != null) {
+            budaRoot = canonicalize(budaRoot, true);
+        }
+
+        System.setProperty("dvb.persistent.root", persistentRoot);
+        System.setProperty("bluray.bindingunit.root", budaRoot);
+
+        if (discRoot != null) {
+            discRoot = canonicalize(discRoot, false);
+            System.setProperty("bluray.vfs.root", discRoot);
+        } else {
+            System.getProperties().remove("bluray.vfs.root");
+        }
+
+        /* */
+
+        Libbluray.nativePointer = nativePointer;
+        DiscManager.getDiscManager().setCurrentDisc(discID);
+
+        BDJActionManager.createInstance();
+
+        Vector prefix = new Vector();
+        prefix.add("org.videolan");
+        PackageManager.setContentPrefixList(prefix);
+        PackageManager.setProtocolPrefixList(prefix);
+        PackageManager.commitContentPrefixList();
         PackageManager.commitProtocolPrefixList();
 
         try {
