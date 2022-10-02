@@ -138,76 +138,6 @@ _show_stream(MPLS_STREAM *ss, int level)
             break;
 
         case 0x03:
-        case 0x04:
-        case 0x80:
-        case 0x81:
-        case 0x82:
-        case 0x83:
-        case 0x84:
-        case 0x85:
-        case 0x86:
-        case 0xa1:
-        case 0xa2:
-            indent_printf(level, "Format %02x: %s", ss->format,
-                        _lookup_str(audio_format_map, ss->format));
-            indent_printf(level, "Rate %02x: %s", ss->rate,
-                        _lookup_str(audio_rate_map, ss->rate));
-            indent_printf(level, "Language: %s", ss->lang);
-            break;
-
-        case 0x90:
-        case 0x91:
-            indent_printf(level, "Language: %s", ss->lang);
-            break;
-
-        case 0x92:
-            indent_printf(level, "Char Code: %02x", ss->char_code);
-            indent_printf(level, "Language: %s", ss->lang);
-            break;
-
-        default:
-            fprintf(stderr, "unrecognized coding type %02x\n", ss->coding_type);
-            break;
-    };
-}
-
-static void
-_show_details(MPLS_PL *pl, int level)
-{
-    int ii, jj, kk;
-
-    for (ii = 0; ii < pl->list_count; ii++) {
-        MPLS_PI *pi;
-
-        pi = &pl->play_item[ii];
-        indent_printf(level, "Clip Id %s", pi->clip[0].clip_id);
-        indent_printf(level+1, "Stc Id: %02x", pi->clip[0].stc_id);
-        indent_printf(level+1, "Connection Condition: %s (%02x)",
-                      _lookup_str(connection_type_map, pi->connection_condition),
-                      pi->connection_condition);
-        indent_printf(level+1, "In-Time: %d", pi->in_time);
-        indent_printf(level+1, "Out-Time: %d", pi->out_time);
-        if (pi->still_mode == 1) {
-            indent_printf(level+1, "Still time: %ds\n", pi->still_time);
-        }
-        if (pi->still_mode == 2) {
-            indent_printf(level+1, "Still time: infinite\n");
-        }
-        if (pi->angle_count > 1) {
-            for (jj = 1; jj < pi->angle_count; jj++) {
-                indent_printf(level+1, "Angle %d:", jj);
-                indent_printf(level+2, "Clip Id %s", pi->clip[jj].clip_id);
-                indent_printf(level+2, "Stc Id: %02x", pi->clip[jj].stc_id);
-            }
-        }
-        for (jj = 0; jj < pi->stn.num_video; jj++) {
-            indent_printf(level+1, "Video Stream %d:", jj);
-            _show_stream(&pi->stn.video[jj], level + 2);
-        }
-        for (jj = 0; jj < pi->stn.num_dv; jj++) {
-            indent_printf(level+1, "Dolby Vision Enhancement Layer Stream %d:", jj);
-            _show_stream(&pi->stn.dv[jj], level + 2);
-        }
         for (jj = 0; jj < pi->stn.num_audio; jj++) {
             indent_printf(level+1, "Audio Stream %d:", jj);
             _show_stream(&pi->stn.audio[jj], level + 2);
@@ -301,7 +231,7 @@ _show_clip_list(MPLS_PL *pl, int level)
             uint32_t duration;
 
             duration = pi->out_time - pi->in_time;
-            indent_printf(level, "%s.m2ts -- Duration: %3d:%02d", 
+            indent_printf(level, "%s.m2ts -- Duration: %3d:%02d",
                         pi->clip[0].clip_id,
                         duration / (45000 * 60), (duration / 45000) % 60);
         } else {
@@ -348,146 +278,6 @@ _show_sub_path(MPLS_SUB *sub, int level)
     }
 }
 
-static void
-_show_pip_metadata_block(MPLS_PIP_METADATA *block, int level)
-{
-    int ii;
-
-    indent_printf(level, "Clip ref: %d", block->clip_ref);
-    indent_printf(level, "Secondary video ref: %d", block->secondary_video_ref);
-    indent_printf(level, "Timeline type: %d", block->timeline_type);
-    indent_printf(level, "Luma key flag: %d", block->luma_key_flag);
-    if (block->luma_key_flag) {
-        indent_printf(level, "Upper limit luma key: %d", block->upper_limit_luma_key);
-    }
-    indent_printf(level, "Trick play flag: %d", block->trick_play_flag);
-
-    for (ii = 0; ii < block->data_count; ii++) {
-        indent_printf(level, "data block %d:", ii);
-        indent_printf(level+1, "Timestamp: %d", block->data[ii].time);
-        indent_printf(level+1, "Horizontal position %d", block->data[ii].xpos);
-        indent_printf(level+1, "Vertical position: %d", block->data[ii].ypos);
-        indent_printf(level+1, "Scaling factor: %d", block->data[ii].scale_factor);
-    }
-}
-
-static void
-_show_pip_metadata(MPLS_PL *pl, int level)
-{
-    int ii;
-
-    for (ii = 0; ii < pl->ext_pip_data_count; ii++) {
-        MPLS_PIP_METADATA *data;
-
-        data = &pl->ext_pip_data[ii];
-
-        indent_printf(level, "PiP metadata block %d:", ii);
-        _show_pip_metadata_block(data, level+1);
-    }
-}
-
-static void
-_show_static_metadata_entry(MPLS_STATIC_METADATA *entry, int level)
-{
-    indent_printf(level, "Dynamic Range Type: %d", entry->dynamic_range_type);
-    indent_printf(level, "Mastering Display Primary R (X, Y): (%f, %f)", (float)entry->display_primaries_x[primary_red]/50000L, (float)entry->display_primaries_y[primary_red]/50000L);
-    indent_printf(level, "Mastering Display Primary G (X, Y): (%f, %f)", (float)entry->display_primaries_x[primary_green]/50000L, (float)entry->display_primaries_y[primary_green]/50000L);
-    indent_printf(level, "Mastering Display Primary B (X, Y): (%f, %f)", (float)entry->display_primaries_x[primary_blue]/50000L, (float)entry->display_primaries_y[primary_blue]/50000L);
-    indent_printf(level, "White Point (X, Y): (%f, %f)", (float)entry->white_point_x/50000L, (float)entry->white_point_y/50000L);
-    indent_printf(level, "Display Mastering Luminance (min, max): (%.4f, %.4f)", (float)entry->min_display_mastering_luminance/10000L, (float)entry->max_display_mastering_luminance);
-    indent_printf(level, "Maximum Frame Average Light Level (MaxFALL): %d", entry->max_CLL);
-    indent_printf(level, "Maximum Content Light Level (MaxCLL): %d", entry->max_FALL);
-}
-
-static void
-_show_static_metadata(MPLS_PL *pl, int level)
-{
-    int ii;
-
-    for (ii = 0; ii < pl->ext_static_metadata_count; ii++) {
-        MPLS_STATIC_METADATA *data;
-
-        data = &pl->ext_static_metadata[ii];
-
-        indent_printf(level, "Static metadata entry %d:", ii);
-        _show_static_metadata_entry(data, level+1);
-    }
-    printf("\n");
-}
-
-static void
-_show_sub_paths(MPLS_PL *pl, int level)
-{
-    int ss;
-
-    for (ss = 0; ss < pl->sub_count; ss++) {
-        MPLS_SUB *sub;
-
-        sub = &pl->sub_path[ss];
-
-        indent_printf(level, "Sub Path %d:", ss);
-        _show_sub_path(sub, level+1);
-    }
-}
-
-static void
-_show_sub_paths_ss(MPLS_PL *pl, int level)
-{
-    int ss;
-
-    for (ss = 0; ss < pl->ext_sub_count; ss++) {
-        MPLS_SUB *sub;
-
-        sub = &pl->ext_sub_path[ss];
-
-        indent_printf(level, "Extension Sub Path %d:", ss);
-        _show_sub_path(sub, level+1);
-    }
-    printf("\n");
-}
-
-static uint32_t
-_pl_duration(MPLS_PL *pl)
-{
-    int ii;
-    uint32_t duration = 0;
-    MPLS_PI *pi;
-
-    for (ii = 0; ii < pl->list_count; ii++) {
-        pi = &pl->play_item[ii];
-        duration += pi->out_time - pi->in_time;
-    }
-    return duration;
-}
-
-static int
-_filter_dup(MPLS_PL *pl_list[], int count, MPLS_PL *pl)
-{
-    int ii, jj;
-
-    for (ii = 0; ii < count; ii++) {
-        if (pl->list_count != pl_list[ii]->list_count ||
-            _pl_duration(pl) != _pl_duration(pl_list[ii])) {
-            continue;
-        }
-        for (jj = 0; jj < pl->list_count; jj++) {
-            MPLS_PI *pi1, *pi2;
-
-            pi1 = &pl->play_item[jj];
-            pi2 = &pl_list[ii]->play_item[jj];
-
-            if (memcmp(pi1->clip[0].clip_id, pi2->clip[0].clip_id, 5) != 0 ||
-                pi1->in_time != pi2->in_time ||
-                pi1->out_time != pi2->out_time) {
-                break;
-            }
-        }
-        if (jj != pl->list_count) {
-            continue;
-        }
-        return 0;
-    }
-    return 1;
 }
 
 static int
@@ -566,7 +356,7 @@ _process_file(char *name, MPLS_PL *pl_list[], int pl_count)
         }
     }
     if (verbose) {
-        indent_printf(0, 
+        indent_printf(0,
                     "%s -- Num Clips: %3d , Duration: minutes %4u:%02u",
                     basename(name),
                     pl->list_count,
@@ -604,8 +394,8 @@ _process_file(char *name, MPLS_PL *pl_list[], int pl_count)
 static void
 _usage(char *cmd)
 {
-    fprintf(stderr, 
-"Usage: %s -vli <mpls file> [<mpls file> ...]\n"
+    fprintf(stderr,
+"Usage: %s [options] <mpls file> [<mpls file> ...]\n"
 "With no options, produces a list of the playlist(s) with durations\n"
 "Options:\n"
 "    v             - Verbose output.\n"
@@ -649,7 +439,7 @@ main(int argc, char *argv[])
     do {
         opt = getopt(argc, argv, OPTS);
         switch (opt) {
-            case -1: 
+            case -1:
                 break;
 
             case 'v':
@@ -792,4 +582,3 @@ main(int argc, char *argv[])
     }
     return 0;
 }
-
