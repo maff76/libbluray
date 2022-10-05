@@ -1,4 +1,4 @@
-ANY WARRANTY; without even the implied warranty of
+ * ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
@@ -7,7 +7,7 @@ ANY WARRANTY; without even the implied warranty of
  * <http://www.gnu.org/licenses/>.
  */
 
-#if HAVE_CONFIG_H
+if HAVE_CONFIG_H
 #include "config.h"
 #endif
 
