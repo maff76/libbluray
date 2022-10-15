@@ -17,7 +17,7 @@ m4_define([lt_revision], 2)
 m4_define([lt_age],      4)
 
 dnl initilization
-AC_INIT([libbluray], bluray_version, [http://www.videolan.org/developers/libbluray.html])
+AC_INIT([libbluray],[bluray_version],[http://www.videolan.org/developers/libbluray.html])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
@@ -52,17 +52,33 @@ case "${host_os}" in
     SYS=netbsd
     CFLAGS="${CFLAGS} -D_NETBSD_SOURCE"
     ;;
+  openbsd*)
+    SYS=openbsd
+    CFLAGS="${CFLAGS} -D_BSD_SOURCE"
+    ;;
   freebsd*)
     SYS=freebsd
-    CFLAGS="${CFLAGS} -D_XOPEN_SOURCE=700"
+    CFLAGS="${CFLAGS} -D__BSD_VISIBLE=1 -D__XSI_VISIBLE=1"
+    ;;
+  solaris*)
+    SYS=solaris
+    CFLAGS="${CFLAGS} -D__EXTENSIONS__"
     ;;
   *)
     SYS="${host_os}"
     ;;
 esac
 
+dnl Falsely enables for NetBSD
+dnl warning: warning: reference to obsolete getfsstat(); use getvfsstat()
+AS_IF([test "${SYS}" != "netbsd"], [
+  AC_CHECK_FUNCS([getfsstat])
+])
+AC_CHECK_FUNCS([getvfsstat])
+
 AM_CONDITIONAL(HAVE_WIN32,   test "${SYS}" = "mingw32")
 AM_CONDITIONAL(HAVE_DARWIN,  test "${SYS}" = "darwin")
+AM_CONDITIONAL(HAVE_GETFSSTAT, test "${ac_cv_func_getfsstat}" = "yes" -o "${ac_cv_func_getvfsstat}" = "yes")
 
 dnl messages
 library_not_found="Could not find required library!"
@@ -122,12 +138,9 @@ AM_PROG_CC_C_O
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 AC_PROG_LIBTOOL
 
-dnl required types
-AC_TYPE_SIGNAL
-
 dnl required headers
 AC_CHECK_HEADERS([stdarg.h sys/types.h dirent.h errno.h libgen.h malloc.h])
-AC_CHECK_HEADERS([stdlib.h mntent.h linux/cdrom.h inttypes.h strings.h])
+AC_CHECK_HEADERS([stdlib.h mntent.h inttypes.h strings.h])
 AC_CHECK_HEADERS([sys/time.h time.h mntent.h])
 
 dnl required structures
@@ -238,6 +251,7 @@ case $host_os in
      solaris*) java_os=solaris ;;
      darwin*)  java_os=darwin ;;
      netbsd*)  java_os=netbsd ;;
+     openbsd*) java_os=openbsd ;;
      *)        java_os=$host_os ;;
 esac
 
@@ -361,4 +375,3 @@ fi
 echo "  Metadata support (libxml2):    $with_libxml2"
 echo "  External libudfread:           $with_libudfread"
 echo "  Build examples:                $use_examples"
-
