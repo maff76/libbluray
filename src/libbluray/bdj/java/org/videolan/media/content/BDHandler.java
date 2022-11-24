@@ -340,7 +340,7 @@ public abstract class BDHandler implements Player, ServiceContentHandler {
 
     protected boolean statusEvent(int event, int param) {
         if (isClosed) return false;
-        commandQueue.put(new PlayerAction(this, PlayerAction.ACTION_STATUS, new Integer(event), param));
+        commandQueue.put(new PlayerAction(this, PlayerAction.ACTION_STATUS, Integer.valueOf(event), param));
         return true;
     }
 
