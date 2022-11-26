@@ -248,7 +248,7 @@ public abstract class BDHandler implements Player, ServiceContentHandler {
     public float setRate(float factor) {
         checkUnrealized();
 
-        PlayerAction action = new PlayerAction(this, PlayerAction.ACTION_SET_RATE, new Float(factor));
+        PlayerAction action = new PlayerAction(this, PlayerAction.ACTION_SET_RATE, Float.valueOf(factor));
         commandQueue.put(action);
         action.waitEnd();
         return rate;
