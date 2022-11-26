@@ -383,4 +383,4 @@ fi
 fi
 echo "  Metadata support (libxml2):    $with_libxml2"
 echo "  External libudfread:           $with_libudfread"
-echo "  Build examples:
+echo "  Build examples:                $use_examples"
